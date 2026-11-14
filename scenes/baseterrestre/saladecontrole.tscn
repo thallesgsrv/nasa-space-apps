@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://cnnkkmgecrjfr"]
+
+[ext_resource type="Texture2D" uid="uid://dmwkal3qnk5u2" path="res://assets/rooms/laboratorio.png" id="1_5y7xc"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qaikj"]
+size = Vector2(533, 550)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_u868j"]
+size = Vector2(502, 532)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wmimt"]
+size = Vector2(440, 439)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tqxvw"]
+size = Vector2(590, 806)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wvtu6"]
+size = Vector2(545, 161)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_em8lr"]
+size = Vector2(2268, 612.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dfcn4"]
+size = Vector2(645, 984)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_myffo"]
+size = Vector2(544, 184)
+
+[node name="Saladecontrole" type="Node2D" unique_id=498758584]
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1576106626]
+position = Vector2(3, 4)
+texture = ExtResource("1_5y7xc")
+
+[node name="Colisoes" type="StaticBody2D" parent="." unique_id=1895120755]
+
+[node name="ParedeBaixoDireita" type="CollisionShape2D" parent="Colisoes" unique_id=858090028]
+position = Vector2(496.5, 497)
+shape = SubResource("RectangleShape2D_qaikj")
+
+[node name="ParedeBaixoEsquerda" type="CollisionShape2D" parent="Colisoes" unique_id=1963644284]
+position = Vector2(-483, 488)
+shape = SubResource("RectangleShape2D_u868j")
+
+[node name="ParedeBaixoCentro" type="CollisionShape2D" parent="Colisoes" unique_id=466645265]
+position = Vector2(-1, 564.5)
+shape = SubResource("RectangleShape2D_wmimt")
+
+[node name="ParedeDireita" type="CollisionShape2D" parent="Colisoes" unique_id=822969642]
+position = Vector2(897, -203)
+shape = SubResource("RectangleShape2D_tqxvw")
+
+[node name="Mesa" type="CollisionShape2D" parent="Colisoes" unique_id=1188201775]
+position = Vector2(602.5, -2.5)
+shape = SubResource("RectangleShape2D_wvtu6")
+
+[node name="Cima" type="CollisionShape2D" parent="Colisoes" unique_id=623303388]
+position = Vector2(24, -489.25)
+shape = SubResource("RectangleShape2D_em8lr")
+
+[node name="ParedeEsquerda" type="CollisionShape2D" parent="Colisoes" unique_id=905529076]
+position = Vector2(-965.5, -92)
+shape = SubResource("RectangleShape2D_dfcn4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Colisoes" unique_id=925262027]
+position = Vector2(-532, 25)
+shape = SubResource("RectangleShape2D_myffo")
