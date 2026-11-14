@@ -54,8 +54,8 @@ texture = ExtResource("4_bg")
 
 [node name="Colisoes" type="StaticBody2D" parent="."]
 
-[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(-107.5, 550)
+[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes" unique_id=2070109799]
+position = Vector2(-193, 851)
 shape = SubResource("s0")
 
 [node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes"]
