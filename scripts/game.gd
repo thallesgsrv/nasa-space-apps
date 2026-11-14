@@ -25,10 +25,8 @@ var _saved_pos := Vector2.ZERO
 func _ready() -> void:
 	player = astronaut
 	scientist = SCIENTIST_SCENE.instantiate()
-	fade.color.a = 1.0 # comeca preto e clareia
-	GameState.exploded.connect(_on_exploded)
-	GameState.failed.connect(_on_failed)
-	UI.fade_to(0.0, 0.0) # tira o escurecimento do menu inicial
+	fade.color.a = 1.0
+	UI.fade_to(0.0, 0.0)
 	UI.show_hud(true)
 	GameState.running = true
 	_load_room(START_ROOM, START_SPAWN)
@@ -64,11 +62,8 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 		return
 	_room = scene.instantiate()
 	world.add_child(_room)
-	Audio.play_room(_room.room_id())   # ambiente da sala (fade)
-	world.move_child(_room, 0) # sala atras, jogador na frente
-	for door in _room.find_children("*", "Area2D", true, false):
-		if door.has_signal("used"):
-			door.used.connect(change_room)
+	world.move_child(_room, 0)
+	_bind_room_doors()
 	if spawn_name != "":
 		player.global_position = _room.get_spawn_position(spawn_name)
 	player.velocity = Vector2.ZERO

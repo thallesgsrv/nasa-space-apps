@@ -82,11 +82,8 @@ func reset() -> void:
 	conditions.clear()
 	tutorial_done = false
 	_heat_warned = false
-	Missions.reset()
-	Voyage.reset()
-	Solar.reset()
-	changed.emit()
-	inventory_changed.emit()
+	_emit_state_change()
+	_emit_inventory_change()
 
 
 func _process(delta: float) -> void:
@@ -145,9 +142,7 @@ func use_item(id: String) -> void:
 
 func cool_core(amount: float) -> void:
 	heat = maxf(0.0, heat - amount)
-	if heat < 100.0:
-		meltdown_left = -1.0
-	changed.emit()
+	_emit_state_change()
 
 
 func heal(amount: float) -> void:
@@ -259,8 +254,12 @@ func _capsule_arrived() -> void:
 	capsule_ready = capsule_item
 	capsule_item = ""
 	capsule_left = 0.0
-	notice.emit(tr("Chegou da Terra: %s. Retire na cápsula (armazém).") % item_name(capsule_ready))
-	inventory_changed.emit()
+	if add_item(id):
+		notice.emit("A cápsula voltou da Terra: %s" % item_name(id))
+	else:
+		capsule_ready = id
+		notice.emit("A cápsula voltou, mas a mochila está cheia!")
+	_emit_inventory_change()
 
 
 func collect_capsule() -> bool:
