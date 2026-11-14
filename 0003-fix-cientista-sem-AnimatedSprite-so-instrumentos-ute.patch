@@ -1,0 +1,202 @@
+From e329fdde3bb7bef6beca30c66369731fab503c1d Mon Sep 17 00:00:00 2001
+From: claude <claude@example.com>
+Date: Sat, 14 Nov 2026 19:31:48 +0000
+Subject: [PATCH 3/3] fix: cientista sem AnimatedSprite, so instrumentos uteis
+ geram ciencia, rebalanceamento e causa de falha
+
+---
+ scripts/mission.gd     | 26 +++++++++++++++-----------
+ scripts/mission.gd.uid |  1 +
+ scripts/player.gd      | 39 +++++++++++++++++++++++++++++++++------
+ 3 files changed, 49 insertions(+), 17 deletions(-)
+ create mode 100644 scripts/mission.gd.uid
+
+diff --git a/scripts/mission.gd b/scripts/mission.gd
+index 0f37da7..10d215c 100644
+--- a/scripts/mission.gd
++++ b/scripts/mission.gd
+@@ -10,8 +10,9 @@ const BUS_COST := 40.0          # M$
+ const BUS_RELIABILITY := 0.97   # por ano
+ const MAX_INSTRUMENTS := 4
+ const DATA_DAYS := 30.0         # dias por mes simulado
++const SUCCESS_FRACTION := 0.9   # fracao minima do requisito de dados para cumprir a missao
+ 
+-const BUDGETS := {"facil": 500.0, "normal": 380.0, "dificil": 300.0}
++const BUDGETS := {"facil": 500.0, "normal": 380.0, "dificil": 320.0}
+ const DIFFICULTY_NAMES := {"facil": "Fácil", "normal": "Normal", "dificil": "Difícil"}
+ 
+ ## needs = tipos de instrumento que respondem a pergunta cientifica
+@@ -51,7 +52,7 @@ const LAUNCHERS := {
+ const ORBITS := {
+ 	"leo": {"name": "Órbita baixa (LEO)", "eclipse": 0.35, "link": 0.2, "storm": false},
+ 	"geo": {"name": "Órbita geoestacionária", "eclipse": 0.05, "link": 1.0, "storm": true},
+-	"l1": {"name": "Ponto L1 (Sol-Terra)", "eclipse": 0.0, "link": 0.5, "storm": true},
++	"l1": {"name": "Ponto L1 (Sol-Terra)", "eclipse": 0.0, "link": 0.6, "storm": true},
+ }
+ 
+ ## rate = dados/dia que a estacao recebe com link 1.0
+@@ -111,9 +112,9 @@ func evaluate() -> Dictionary:
+ 		mass += float(ins["mass"])
+ 		power_use += float(ins["power"])
+ 		cost += float(ins["cost"])
+-		data_raw += float(ins["data"])
+ 		if need.has(ins["type"]):
+ 			matching += 1
++			data_raw += float(ins["data"])  # so instrumentos ligados ao objetivo geram ciencia util
+ 	var power_gen := 0.0
+ 	if array_id != "":
+ 		var a: Dictionary = ARRAYS[array_id]
+@@ -175,7 +176,7 @@ func evaluate() -> Dictionary:
+ 
+ 	return {
+ 		"mass": mass, "cap": cap, "power_gen": power_gen, "power_use": power_use, "duty": duty,
+-		"data_gen": data_gen, "downlink": downlink, "data_day": data_day, "cost": cost,
++		"data_raw": data_raw, "data_gen": data_gen, "downlink": downlink, "data_day": data_day, "cost": cost,
+ 		"fit": fit, "blocking": blocking, "warnings": warnings,
+ 	}
+ 
+@@ -187,7 +188,7 @@ func review_lines() -> Array[String]:
+ 	out.append("Dados %.1f/dia, link %.1f/dia | Custo %d/%d M$" % [ev["data_gen"], ev["downlink"], int(ev["cost"]), int(budget())])
+ 	if objective != "":
+ 		var o: Dictionary = OBJECTIVES[objective]
+-		out.append("Requisito: %.1f dados/dia por %d meses." % [o["min_data"], o["months"]])
++		out.append("Requisito: %.1f dados/dia por %d meses (mínimo %d%%)." % [o["min_data"], o["months"], int(SUCCESS_FRACTION * 100.0)])
+ 	for b in ev["blocking"]:
+ 		out.append("BLOQUEIA: " + str(b))
+ 	for w in ev["warnings"]:
+@@ -243,14 +244,15 @@ func launch() -> Dictionary:
+ 			lines.append("Mês %d: tempestade solar reduziu os dados." % month)
+ 		var gen := 0.0
+ 		for id in active:
+-			gen += float(INSTRUMENTS[id]["data"])
++			if o["needs"].has(INSTRUMENTS[id]["type"]):
++				gen += float(INSTRUMENTS[id]["data"])
+ 		gen *= duty
+ 		total += minf(gen, downlink) * DATA_DAYS * storm * fit
+ 	var required: float = float(o["min_data"]) * DATA_DAYS * months
+ 	var frac := total / required
+ 	lines.append("Operou %d de %d meses. Dados entregues: %d de %d (%d%%)." % [months_run, months, int(total), int(required), int(frac * 100.0)])
+ 
+-	var success := frac >= 1.0 and not bus_failed
++	var success := frac >= SUCCESS_FRACTION and not bus_failed
+ 	var thrift := clampf((budget() - float(ev["cost"])) / budget(), 0.0, 1.0)
+ 	var score := int(clampf(frac, 0.0, 1.2) / 1.2 * 70.0 + thrift * 20.0 + (10.0 if lost == 0 and not bus_failed else 0.0))
+ 	if success:
+@@ -268,14 +270,16 @@ func launch() -> Dictionary:
+ func _failure_reason(ev: Dictionary, bus_failed: bool, lost: int, frac: float) -> String:
+ 	if bus_failed:
+ 		return "a plataforma falhou antes do fim da vida útil. Faltou margem de confiabilidade."
+-	if float(ev["duty"]) < 1.0:
+-		return "energia insuficiente deixou os instrumentos desligados parte do tempo."
+-	if float(ev["data_gen"]) > float(ev["downlink"]):
++	var power_loss: float = float(ev["data_raw"]) - float(ev["data_gen"])
++	var comm_loss: float = maxf(0.0, float(ev["data_gen"]) - float(ev["downlink"]))
++	if comm_loss > 0.0 and comm_loss >= power_loss:
+ 		return "a comunicação não escoou os dados. Use estação melhor ou órbita com mais contato."
++	if power_loss > 0.0:
++		return "energia insuficiente deixou os instrumentos desligados parte do tempo."
+ 	if float(ev["fit"]) < 1.0:
+ 		return "a órbita escolhida não era a ideal para o objetivo."
+ 	if lost > 0:
+ 		return "falhas de instrumentos reduziram os dados. Considere instrumentos mais confiáveis."
+-	if frac < 1.0:
++	if frac < SUCCESS_FRACTION:
+ 		return "os instrumentos geram dados abaixo do requisito. Adicione instrumentos úteis."
+ 	return "combinação de azar e margens pequenas."
+diff --git a/scripts/mission.gd.uid b/scripts/mission.gd.uid
+new file mode 100644
+index 0000000..0a4464b
+--- /dev/null
++++ b/scripts/mission.gd.uid
+@@ -0,0 +1 @@
++uid://c5xrv6qp5m610
+diff --git a/scripts/player.gd b/scripts/player.gd
+index 7524274..ba14e87 100644
+--- a/scripts/player.gd
++++ b/scripts/player.gd
+@@ -14,7 +14,14 @@ var locked := false
+ ## Sentado na cadeira de comando (console de missao aberto).
+ var seated := false
+ 
+-@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
++## Personagem de imagem estatica (cientista): uma textura por direcao, sem AnimatedSprite2D.
++@export var tex_up: Texture2D
++@export var tex_down: Texture2D
++@export var tex_side: Texture2D
++@export var side_faces_left := false  # a arte "side" ja olha para a esquerda?
++
++@onready var sprite: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
++@onready var still: Sprite2D = get_node_or_null("Sprite2D") as Sprite2D
+ @onready var sensor: Area2D = get_node_or_null("InteractSensor") as Area2D
+ 
+ var _prompt: Label
+@@ -31,7 +38,8 @@ var _roll_dir := Vector2.ZERO
+ 
+ func _ready() -> void:
+ 	_setup_input()
+-	sprite.animation_finished.connect(_on_animation_finished)
++	if sprite != null:
++		sprite.animation_finished.connect(_on_animation_finished)
+ 	_play("idle")
+ 	_prompt = Label.new()
+ 	_prompt.add_theme_font_override("font", FONT)
+@@ -82,7 +90,7 @@ func _physics_process(_delta: float) -> void:
+ 
+ ## Toca a animacao de dano (o jogador perde o controle ate ela terminar).
+ func hit() -> void:
+-	if _dead or _locked:
++	if sprite == null or _dead or _locked:
+ 		return
+ 	_locked = true
+ 	_roll_dir = Vector2.ZERO
+@@ -91,7 +99,7 @@ func hit() -> void:
+ 
+ ## Rolamento na ultima direcao andada.
+ func roll() -> void:
+-	if _dead or _locked:
++	if sprite == null or _dead or _locked:
+ 		return
+ 	_locked = true
+ 	_roll_dir = _last_dir.normalized()
+@@ -108,17 +116,36 @@ func die() -> void:
+ 	_dead = true
+ 	_locked = true
+ 	velocity = Vector2.ZERO
+-	sprite.flip_h = _flip
+-	sprite.play("death_side")
++	if sprite != null:
++		sprite.flip_h = _flip
++		sprite.play("death_side")
+ 
+ 
+ func _play(base: String, restart: bool = false) -> void:
++	if sprite == null:
++		_show_still()
++		return
+ 	var anim := "%s_%s" % [base, _facing]
+ 	sprite.flip_h = _flip and _facing == "side"
+ 	if restart or sprite.animation != anim:
+ 		sprite.play(anim)
+ 
+ 
++func _show_still() -> void:
++	if still == null:
++		return
++	match _facing:
++		"up":
++			still.texture = tex_up
++			still.flip_h = false
++		"down":
++			still.texture = tex_down
++			still.flip_h = false
++		_:
++			still.texture = tex_side
++			still.flip_h = _flip != side_faces_left
++
++
+ func _on_animation_finished() -> void:
+ 	var anim := String(sprite.animation)
+ 	if anim.begins_with("hit") or anim.begins_with("roll"):
+-- 
+2.43.0
+

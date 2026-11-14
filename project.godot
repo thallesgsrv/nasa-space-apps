@@ -26,6 +26,7 @@ Solar="*res://scripts/solar.gd"
 Voyage="*res://scripts/voyage.gd"
 UI="*res://scripts/ui/ui.gd"
 Interactions="*res://scripts/interactions.gd"
+Mission="*res://scripts/mission.gd"
 
 [display]
 
