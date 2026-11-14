@@ -10,12 +10,14 @@ const TEX_DIALOG := preload("res://assets/ui/dialog_box.png")
 const TEX_PANEL := preload("res://assets/ui/panel_menu.png")
 const TEX_BAR := preload("res://assets/ui/panel_bar.png")
 const TEX_TOAST := preload("res://assets/ui/panel_toast.png")
+const GRID := preload("res://scripts/ui/grid_screen.gd")
 
 const INK := Color("1b2a5c")
 const VIEW := Vector2(1536, 1024)
 
 signal _advance
 signal _chosen(index: int)
+signal _panel_closed
 
 var _locks := 0
 var busy: bool:
@@ -51,6 +53,15 @@ var _toast: Control
 var _toast_label: Label
 var _toast_tween: Tween
 
+# painel de texto (menu de missoes)
+var _panel: Control
+var _panel_text: Label
+var _panel_active := false
+
+# rastreador da missao (canto superior direito)
+var _tracker: Control
+var _tracker_label: Label
+
 # fade (dormir)
 var _fade: ColorRect
 
@@ -62,6 +73,8 @@ func _ready() -> void:
 	_build_dialog()
 	_build_menu()
 	_build_toast()
+	_build_panel()
+	_build_tracker()
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -69,6 +82,7 @@ func _ready() -> void:
 	add_child(_fade)
 	GameState.changed.connect(_refresh_hud)
 	GameState.notice.connect(toast)
+	Missions.changed.connect(_refresh_tracker)
 	show_hud(false)
 	_refresh_hud()
 
@@ -84,6 +98,20 @@ func unlock() -> void:
 
 func show_hud(v: bool) -> void:
 	_hud.visible = v
+	if _tracker != null:
+		_refresh_tracker()
+
+
+## Painel grande de texto (menu de missoes); fecha com F / Esc / M.
+func show_panel(text: String) -> void:
+	lock()
+	_panel_text.text = text
+	_panel.visible = true
+	_panel_active = true
+	await _panel_closed
+	_panel.visible = false
+	_panel_active = false
+	unlock()
 
 
 ## Mostra uma ou mais falas; cada uma avanca com F / Enter / Espaco.
@@ -97,6 +125,15 @@ func say(lines) -> void:
 	_dialog.visible = false
 	_dialog_active = false
 	unlock()
+
+
+## Abre a tela de grade ("inventory" ou "storage"); feche com queue_free() no fim.
+func open_grid(kind: String) -> Control:
+	var g = GRID.new()
+	g.configure(kind)
+	add_child(g)
+	move_child(g, _hud.get_index() + 1)  # fica atras do menu de escolha, dialogo e avisos
+	return g
 
 
 ## Menu de escolha; devolve o indice escolhido ou -1 se cancelar (Esc).
@@ -332,6 +369,10 @@ func _input(event: InputEvent) -> void:
 		if event.is_action_pressed("interact") and not event.is_echo():
 			get_viewport().set_input_as_handled()
 			_advance.emit()
+	elif _panel_active:
+		if (event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("missions")) and not event.is_echo():
+			get_viewport().set_input_as_handled()
+			_panel_closed.emit()
 
 
 # ============================ aviso ============================
@@ -349,6 +390,57 @@ func _build_toast() -> void:
 	_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_toast.add_child(_toast_label)
+
+
+# ============================ painel e rastreador ============================
+func _build_panel() -> void:
+	_panel = Control.new()
+	_panel.visible = false
+	_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_panel)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel.add_child(dim)
+	var box := NinePatchRect.new()
+	box.texture = TEX_DIALOG
+	for side in ["left", "right", "top", "bottom"]:
+		box.set("patch_margin_" + side, 36)
+	box.position = Vector2(148, 100)
+	box.size = Vector2(1240, 820)
+	_panel.add_child(box)
+	_panel_text = _label("", 24)
+	_panel_text.position = Vector2(200, 150)
+	_panel_text.size = Vector2(1136, 720)
+	_panel_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_panel.add_child(_panel_text)
+
+
+func _build_tracker() -> void:
+	_tracker = Control.new()
+	_tracker.size = Vector2(600, 120)
+	_tracker.position = Vector2(VIEW.x - 600.0 - 16.0, 100)
+	_tracker.visible = false
+	add_child(_tracker)
+	var box := NinePatchRect.new()
+	box.texture = TEX_TOAST
+	for side in ["left", "right", "top", "bottom"]:
+		box.set("patch_margin_" + side, 20)
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tracker.add_child(box)
+	_tracker_label = _label("", 24)
+	_tracker_label.position = Vector2(30, 18)
+	_tracker_label.size = Vector2(540, 90)
+	_tracker_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tracker.add_child(_tracker_label)
+
+
+func _refresh_tracker() -> void:
+	var txt: String = Missions.tracker_text()
+	_tracker_label.text = txt
+	_tracker.visible = _hud.visible and txt != ""
 
 
 # ============================ util ============================

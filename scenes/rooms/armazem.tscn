@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -49,6 +49,12 @@ size = Vector2(209, 341)
 
 [sub_resource type="RectangleShape2D" id="s14"]
 size = Vector2(166, 215)
+
+[sub_resource type="RectangleShape2D" id="s15"]
+size = Vector2(335, 272)
+
+[sub_resource type="RectangleShape2D" id="s16"]
+size = Vector2(272, 186)
 
 [node name="Armazem" type="Node2D"]
 script = ExtResource("1_room")
@@ -147,6 +153,24 @@ display_name = "Cápsula"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Capsula"]
 shape = SubResource("s14")
+
+[node name="EstanteCultura" type="Area2D" parent="Interativos"]
+position = Vector2(582.5, 276)
+script = ExtResource("3_inter")
+action = "mission_pacotes"
+display_name = "Pacotes de cultura"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/EstanteCultura"]
+shape = SubResource("s15")
+
+[node name="Aquecedor" type="Area2D" parent="Interativos"]
+position = Vector2(1256, 533)
+script = ExtResource("3_inter")
+action = "aquecedor"
+display_name = "Aquecedor"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Aquecedor"]
+shape = SubResource("s16")
 
 [node name="Spawns" type="Node2D" parent="."]
 

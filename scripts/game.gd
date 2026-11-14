@@ -36,6 +36,8 @@ func _ready() -> void:
 		player.locked = true
 		await Interactions.show_tutorial()
 		player.locked = false
+		if Missions.active == "" and Missions.finished.is_empty():
+			Missions.start("bionutrientes")
 
 
 func change_room(room_path: String, spawn_name: String) -> void:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -40,6 +40,9 @@ size = Vector2(44, 160)
 
 [sub_resource type="RectangleShape2D" id="s11"]
 size = Vector2(200, 230)
+
+[sub_resource type="RectangleShape2D" id="s12"]
+size = Vector2(230, 155)
 
 [node name="SalaControle" type="Node2D"]
 script = ExtResource("1_room")
@@ -114,6 +117,15 @@ shape = SubResource("s11")
 
 [node name="Assento" type="Marker2D" parent="Interativos/CadeiraComando"]
 position = Vector2(-23, 40)
+
+[node name="Centrifuga" type="Area2D" parent="Interativos"]
+position = Vector2(315, 807.5)
+script = ExtResource("3_inter")
+action = "centrifuga"
+display_name = "Centrífuga"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Centrifuga"]
+shape = SubResource("s12")
 
 [node name="Spawns" type="Node2D" parent="."]
 

@@ -73,6 +73,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("inventory") and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		_run_locked(Interactions.open_inventory)
+	elif event.is_action_pressed("missions") and not event.is_echo():
+		get_viewport().set_input_as_handled()
+		_run_locked(Interactions.open_missions)
 
 
 func _interact_with(t: Area2D) -> void:
