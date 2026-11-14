@@ -5,34 +5,34 @@
 [ext_resource type="Texture2D" uid="uid://dplmk00c11bkc" path="res://assets/rooms/camara_propulsao.png" id="3_bg"]
 
 [sub_resource type="RectangleShape2D" id="s0"]
-size = Vector2(597.3, 2901.3)
+size = Vector2(385, 1700)
 
 [sub_resource type="RectangleShape2D" id="s1"]
-size = Vector2(170.7, 2901.3)
+size = Vector2(2200, 475)
 
 [sub_resource type="RectangleShape2D" id="s2"]
-size = Vector2(3754.7, 819.2)
+size = Vector2(725, 605)
 
 [sub_resource type="RectangleShape2D" id="s3"]
-size = Vector2(3754.7, 1459.2)
+size = Vector2(327, 652)
 
 [sub_resource type="RectangleShape2D" id="s4"]
-size = Vector2(2662.4, 798.7)
+size = Vector2(1148, 1130)
 
 [sub_resource type="RectangleShape2D" id="s5"]
-size = Vector2(2508.8, 157)
+size = Vector2(995, 570)
 
 [sub_resource type="RectangleShape2D" id="s6"]
 size = Vector2(336.2, 360.25)
 
 [sub_resource type="RectangleShape2D" id="s7"]
-size = Vector2(157, 216.7)
+size = Vector2(68, 210)
 
 [sub_resource type="RectangleShape2D" id="s8"]
-size = Vector2(209.9, 290.1)
+size = Vector2(240, 45)
 
 [sub_resource type="RectangleShape2D" id="s9"]
-size = Vector2(204.8, 51.2)
+size = Vector2(95, 168)
 
 [node name="CamaraPropulsao" type="Node2D" unique_id=923661323]
 script = ExtResource("1_room")
