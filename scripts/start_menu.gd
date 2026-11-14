@@ -77,5 +77,6 @@ func _unhandled_input(event: InputEvent) -> void:
 func _start_game() -> void:
 	_starting = true
 	GameState.reset()
+	Mission.reset()
 	await UI.fade_to(1.0, 0.5)
 	get_tree().change_scene_to_file(GAME_SCENE)

@@ -3,7 +3,6 @@ extends Node
 ## Cada Interativo nas salas tem um "action"; run() executa a acao correspondente.
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
-const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de controle)
 
 
 func run(action: String, source: Node, player: Node) -> void:
@@ -29,7 +28,7 @@ func run(action: String, source: Node, player: Node) -> void:
 		"botiquim":
 			await _botiquim()
 		"propulsor":
-			await UI.say(["Painel do propulsor.", "Todos os sistemas estáveis. (Controle do propulsor em desenvolvimento.)"])
+			await UI.say(["Painel do propulsor.", "A escolha do lançador e da órbita é feita no console da sala de controle."])
 		"assento":
 			await _assento(source, player)
 		_:
@@ -42,6 +41,7 @@ func show_tutorial() -> void:
 		"Use W A S D (ou as setas) para andar.",
 		"Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar.",
 		"Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus.",
+		"Sente na sala de controle para projetar a missão: objetivo, instrumentos, energia, lançador, órbita e solo.",
 		"Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra).",
 		"Fique de olho nas barras de comida, sono e água lá embaixo!",
 	])
@@ -257,15 +257,103 @@ func _assento(source: Node, player: Node) -> void:
 		return
 	var stand_pos: Vector2 = player.global_position
 	player.sit(seat.global_position)
-	while true:
-		var title := "Rota: " + (GameState.route if GameState.route != "" else "nenhuma")
-		var opts: Array = []
-		for r in ROUTES:
-			opts.append("Ir para " + r)
-		opts.append("Levantar")
-		var i := await UI.choose(opts, title)
-		if i < 0 or i >= ROUTES.size():
-			break
-		GameState.route = ROUTES[i]
-		await UI.say(["Próxima rota definida: %s." % ROUTES[i], "(A viagem ainda não foi implementada.)"])
+	await _mission_console()
 	player.stand(stand_pos)
+
+
+func _name_of(table: Dictionary, id: String) -> String:
+	return table[id]["name"] if id != "" else "—"
+
+
+func _mission_console() -> void:
+	while true:
+		var opts: Array = [
+			"Dificuldade: " + Mission.DIFFICULTY_NAMES[Mission.difficulty],
+			"1 Objetivo: " + _name_of(Mission.OBJECTIVES, Mission.objective),
+			"2 Instrumentos (%d)" % Mission.instruments.size(),
+			"3 Energia: " + _name_of(Mission.ARRAYS, Mission.array_id),
+			"4 Lançador: " + _name_of(Mission.LAUNCHERS, Mission.launcher),
+			"5 Órbita: " + _name_of(Mission.ORBITS, Mission.orbit),
+			"6 Solo: " + _name_of(Mission.STATIONS, Mission.station),
+			"Revisar projeto",
+			"LANÇAR MISSÃO",
+			"Levantar",
+		]
+		var i := await UI.choose(opts, "Console de missão")
+		match i:
+			0:
+				var keys := Mission.BUDGETS.keys()
+				Mission.difficulty = keys[(keys.find(Mission.difficulty) + 1) % keys.size()]
+				await UI.say("Orçamento: %d M$." % int(Mission.budget()))
+			1:
+				await _pick("Objetivo científico", Mission.OBJECTIVES, "objective", _obj_label)
+			2:
+				await _pick_instruments()
+			3:
+				await _pick("Energia", Mission.ARRAYS, "array_id", _array_label)
+			4:
+				await _pick("Lançador", Mission.LAUNCHERS, "launcher", _launcher_label)
+			5:
+				await _pick("Órbita", Mission.ORBITS, "orbit", _orbit_label)
+			6:
+				await _pick("Estação terrestre", Mission.STATIONS, "station", _station_label)
+			7:
+				await UI.say(Mission.review_lines())
+			8:
+				var r := Mission.launch()
+				await UI.say(r["lines"])
+			_:
+				return
+
+
+func _pick(title: String, table: Dictionary, field: String, label: Callable) -> void:
+	var ids := table.keys()
+	var opts: Array = []
+	for id in ids:
+		opts.append(label.call(id))
+	opts.append("Voltar")
+	var i := await UI.choose(opts, title)
+	if i >= 0 and i < ids.size():
+		Mission.set(field, ids[i])
+
+
+func _pick_instruments() -> void:
+	while true:
+		var ids := Mission.INSTRUMENTS.keys()
+		var opts: Array = []
+		for id in ids:
+			var ins: Dictionary = Mission.INSTRUMENTS[id]
+			var mark := "[x] " if Mission.instruments.has(id) else "[ ] "
+			opts.append("%s%s %dkg %dW %.0fd %dM$" % [mark, ins["name"], int(ins["mass"]), int(ins["power"]), ins["data"], int(ins["cost"])])
+		opts.append("Concluir")
+		var i := await UI.choose(opts, "Instrumentos %d/%d" % [Mission.instruments.size(), Mission.MAX_INSTRUMENTS])
+		if i < 0 or i >= ids.size():
+			return
+		if not Mission.toggle_instrument(ids[i]):
+			await UI.say("Máximo de %d instrumentos." % Mission.MAX_INSTRUMENTS)
+
+
+func _obj_label(id: String) -> String:
+	var o: Dictionary = Mission.OBJECTIVES[id]
+	return "%s: %.0f dados/dia, %d meses" % [o["name"], o["min_data"], o["months"]]
+
+
+func _array_label(id: String) -> String:
+	var a: Dictionary = Mission.ARRAYS[id]
+	return "%s %dW %dkg %dM$" % [a["name"], int(a["watts"]), int(a["mass"]), int(a["cost"])]
+
+
+func _launcher_label(id: String) -> String:
+	var l: Dictionary = Mission.LAUNCHERS[id]
+	var c: Dictionary = l["cap"]
+	return "%s %dM$ (LEO %d, GEO %d, L1 %d kg)" % [l["name"], int(l["cost"]), int(c["leo"]), int(c["geo"]), int(c["l1"])]
+
+
+func _orbit_label(id: String) -> String:
+	var o: Dictionary = Mission.ORBITS[id]
+	return "%s: eclipse %d%%, link %.1f" % [o["name"], int(float(o["eclipse"]) * 100.0), o["link"]]
+
+
+func _station_label(id: String) -> String:
+	var s: Dictionary = Mission.STATIONS[id]
+	return "%s %.0f dados/dia %dM$" % [s["name"], s["rate"], int(s["cost"])]
