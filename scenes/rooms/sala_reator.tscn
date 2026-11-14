@@ -6,58 +6,68 @@
 [ext_resource type="Texture2D" uid="uid://bhgkebdek7ybw" path="res://assets/rooms/sala_reator.png" id="4_bg"]
 
 [sub_resource type="RectangleShape2D" id="s0"]
-size = Vector2(395, 1700)
+size = Vector2(400, 1700)
 
 [sub_resource type="RectangleShape2D" id="s1"]
-size = Vector2(460, 1700)
+size = Vector2(445, 1700)
 
 [sub_resource type="RectangleShape2D" id="s2"]
 size = Vector2(2200, 605)
 
 [sub_resource type="RectangleShape2D" id="s3"]
-size = Vector2(2200, 485)
+size = Vector2(2200, 495)
 
 [sub_resource type="RectangleShape2D" id="s4"]
-size = Vector2(54, 24)
+size = Vector2(210, 42)
 
 [sub_resource type="RectangleShape2D" id="s5"]
-size = Vector2(177, 313)
+size = Vector2(260, 555)
 
 [sub_resource type="RectangleShape2D" id="s6"]
-size = Vector2(152, 145)
+size = Vector2(195, 452)
 
 [sub_resource type="RectangleShape2D" id="s7"]
-size = Vector2(260, 520)
+size = Vector2(202, 452)
 
 [sub_resource type="RectangleShape2D" id="s8"]
-size = Vector2(200, 462)
+size = Vector2(220, 348)
 
 [sub_resource type="RectangleShape2D" id="s9"]
-size = Vector2(215, 462)
+size = Vector2(232, 122)
 
 [sub_resource type="RectangleShape2D" id="s10"]
-size = Vector2(167, 238)
+size = Vector2(92, 80)
 
 [sub_resource type="RectangleShape2D" id="s11"]
-size = Vector2(302, 86)
+size = Vector2(77, 87)
 
 [sub_resource type="RectangleShape2D" id="s12"]
-size = Vector2(64, 74)
+size = Vector2(167, 203)
 
 [sub_resource type="RectangleShape2D" id="s13"]
-size = Vector2(72, 83)
+size = Vector2(57, 135)
 
 [sub_resource type="RectangleShape2D" id="s14"]
-size = Vector2(160, 37)
+size = Vector2(270, 150)
 
 [sub_resource type="RectangleShape2D" id="s15"]
-size = Vector2(160, 212)
+size = Vector2(160, 35)
 
 [sub_resource type="RectangleShape2D" id="s16"]
-size = Vector2(225, 160)
+size = Vector2(50, 56)
+
+[sub_resource type="RectangleShape2D" id="s17"]
+size = Vector2(230, 190)
+
+[sub_resource type="RectangleShape2D" id="s18"]
+size = Vector2(166, 150)
+
+[sub_resource type="RectangleShape2D" id="s19"]
+size = Vector2(360, 338)
 
 [node name="SalaReator" type="Node2D" unique_id=1603498297]
 script = ExtResource("1_room")
+place_name = "Sala do reator"
 
 [node name="Fundo" type="Sprite2D" parent="." unique_id=633774436]
 texture = ExtResource("4_bg")
@@ -128,6 +138,7 @@ position = Vector2(770, 895)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/cafeteria.tscn"
 target_spawn = "from_sala_reator"
+place_name = "Cafeteria"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria" unique_id=454770010]
 position = Vector2(-2, 36.5)
