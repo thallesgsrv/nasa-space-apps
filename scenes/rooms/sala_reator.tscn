@@ -1,9 +1,9 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene format=3 uid="uid://c8mr412a1amd7"]
 
-[ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
-[ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
-[ext_resource type="Script" path="res://scripts/interactable.gd" id="3_inter"]
-[ext_resource type="Texture2D" path="res://assets/rooms/sala_reator.png" id="4_bg"]
+[ext_resource type="Script" uid="uid://uevjtx6koa1r" path="res://scripts/room.gd" id="1_room"]
+[ext_resource type="Script" uid="uid://bpwndl0ga1by5" path="res://scripts/door.gd" id="2_door"]
+[ext_resource type="Script" uid="uid://dt708w2jkqh4k" path="res://scripts/interactable.gd" id="3_inter"]
+[ext_resource type="Texture2D" uid="uid://bhgkebdek7ybw" path="res://assets/rooms/sala_reator.png" id="4_bg"]
 
 [sub_resource type="RectangleShape2D" id="s0"]
 size = Vector2(395, 1700)
@@ -56,103 +56,104 @@ size = Vector2(160, 212)
 [sub_resource type="RectangleShape2D" id="s16"]
 size = Vector2(225, 160)
 
-[node name="SalaReator" type="Node2D"]
+[node name="SalaReator" type="Node2D" unique_id=1603498297]
 script = ExtResource("1_room")
 
-[node name="Fundo" type="Sprite2D" parent="."]
-centered = false
+[node name="Fundo" type="Sprite2D" parent="." unique_id=633774436]
 texture = ExtResource("4_bg")
+centered = false
 
-[node name="Colisoes" type="StaticBody2D" parent="."]
+[node name="Colisoes" type="StaticBody2D" parent="." unique_id=1566529040]
 
-[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes"]
+[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes" unique_id=314959742]
 position = Vector2(-102.5, 550)
 shape = SubResource("s0")
 
-[node name="ParedeDir" type="CollisionShape2D" parent="Colisoes"]
+[node name="ParedeDir" type="CollisionShape2D" parent="Colisoes" unique_id=430823409]
 position = Vector2(1670, 550)
 shape = SubResource("s1")
 
-[node name="ParedeTopo" type="CollisionShape2D" parent="Colisoes"]
+[node name="ParedeTopo" type="CollisionShape2D" parent="Colisoes" unique_id=1512189280]
 position = Vector2(800, 2.5)
 shape = SubResource("s2")
 
-[node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes"]
+[node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes" unique_id=666043430]
 position = Vector2(800, 1157.5)
 shape = SubResource("s3")
 
-[node name="Banco" type="CollisionShape2D" parent="Colisoes"]
+[node name="Banco" type="CollisionShape2D" parent="Colisoes" unique_id=309394061]
 position = Vector2(325, 310)
 shape = SubResource("s4")
 
-[node name="RackBarris" type="CollisionShape2D" parent="Colisoes"]
+[node name="RackBarris" type="CollisionShape2D" parent="Colisoes" unique_id=1997539637]
 position = Vector2(173.5, 511.5)
 shape = SubResource("s5")
 
-[node name="CaixasBaixoEsq" type="CollisionShape2D" parent="Colisoes"]
+[node name="CaixasBaixoEsq" type="CollisionShape2D" parent="Colisoes" unique_id=530345596]
 position = Vector2(176, 832.5)
 shape = SubResource("s6")
 
-[node name="Nucleo" type="CollisionShape2D" parent="Colisoes"]
+[node name="Nucleo" type="CollisionShape2D" parent="Colisoes" unique_id=1435800677]
 position = Vector2(775, 340)
 shape = SubResource("s7")
 
-[node name="PlataformaEsq" type="CollisionShape2D" parent="Colisoes"]
+[node name="PlataformaEsq" type="CollisionShape2D" parent="Colisoes" unique_id=1262063353]
 position = Vector2(580, 531)
 shape = SubResource("s8")
 
-[node name="PlataformaDir" type="CollisionShape2D" parent="Colisoes"]
+[node name="PlataformaDir" type="CollisionShape2D" parent="Colisoes" unique_id=1966374125]
 position = Vector2(967.5, 531)
 shape = SubResource("s9")
 
-[node name="MaquinaMedica" type="CollisionShape2D" parent="Colisoes"]
+[node name="MaquinaMedica" type="CollisionShape2D" parent="Colisoes" unique_id=1537654079]
 position = Vector2(1368.5, 589)
 shape = SubResource("s10")
 
-[node name="CanoBaixoDir" type="CollisionShape2D" parent="Colisoes"]
+[node name="CanoBaixoDir" type="CollisionShape2D" parent="Colisoes" unique_id=19387231]
 position = Vector2(1301, 855)
 shape = SubResource("s11")
 
-[node name="CaixaVerde" type="CollisionShape2D" parent="Colisoes"]
+[node name="CaixaVerde" type="CollisionShape2D" parent="Colisoes" unique_id=1094733483]
 position = Vector2(1420, 805)
 shape = SubResource("s12")
 
-[node name="CaixasTopoDir" type="CollisionShape2D" parent="Colisoes"]
+[node name="CaixasTopoDir" type="CollisionShape2D" parent="Colisoes" unique_id=900833431]
 position = Vector2(1416, 346.5)
 shape = SubResource("s13")
 
-[node name="Portas" type="Node2D" parent="."]
+[node name="Portas" type="Node2D" parent="." unique_id=39225639]
 
-[node name="Porta_cafeteria" type="Area2D" parent="Portas"]
-position = Vector2(770, 896.5)
+[node name="Porta_cafeteria" type="Area2D" parent="Portas" unique_id=581284629]
+position = Vector2(770, 895)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/cafeteria.tscn"
 target_spawn = "from_sala_reator"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria" unique_id=454770010]
+position = Vector2(-2, 36.5)
 shape = SubResource("s14")
 
-[node name="Interativos" type="Node2D" parent="."]
+[node name="Interativos" type="Node2D" parent="." unique_id=103396618]
 
-[node name="PainelNucleo" type="Area2D" parent="Interativos"]
+[node name="PainelNucleo" type="Area2D" parent="Interativos" unique_id=1038075469]
 position = Vector2(730, 554)
 script = ExtResource("3_inter")
 action = "nucleo"
 display_name = "Núcleo"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelNucleo"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelNucleo" unique_id=1027417207]
 shape = SubResource("s15")
 
-[node name="KitMedico" type="Area2D" parent="Interativos"]
+[node name="KitMedico" type="Area2D" parent="Interativos" unique_id=1513352169]
 position = Vector2(1342.5, 680)
 script = ExtResource("3_inter")
 action = "botiquim"
 display_name = "Kit médico"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/KitMedico"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/KitMedico" unique_id=1323910570]
 shape = SubResource("s16")
 
-[node name="Spawns" type="Node2D" parent="."]
+[node name="Spawns" type="Node2D" parent="." unique_id=1163871754]
 
-[node name="from_cafeteria" type="Marker2D" parent="Spawns"]
-position = Vector2(770, 850)
+[node name="from_cafeteria" type="Marker2D" parent="Spawns" unique_id=1591433153]
+position = Vector2(768, 924)

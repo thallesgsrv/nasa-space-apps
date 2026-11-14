@@ -44,7 +44,7 @@ centered = false
 [node name="Colisoes" type="StaticBody2D" parent="." unique_id=667483962]
 
 [node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes" unique_id=2070109799]
-position = Vector2(-213.3, 938.7)
+position = Vector2(-193, 851)
 shape = SubResource("s0")
 
 [node name="ParedeDir" type="CollisionShape2D" parent="Colisoes" unique_id=551493901]
