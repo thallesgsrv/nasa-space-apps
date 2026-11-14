@@ -17,6 +17,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Lang="*res://scripts/lang.gd"
+Audio="*res://scripts/audio.gd"
 GameState="*res://scripts/game_state.gd"
 Missions="*res://scripts/missions.gd"
 Voyage="*res://scripts/voyage.gd"
@@ -42,3 +44,7 @@ window/stretch/aspect="expand"
 
 rendering_device/driver.windows="d3d12"
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
+
+[internationalization]
+
+locale/fallback="pt_BR"

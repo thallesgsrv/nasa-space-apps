@@ -12,12 +12,15 @@ const BOX := Rect2(113, 362, 610, 276)
 const OPTIONS := ["INICIAR", "OPÇÕES"]
 
 var _sel := 0
+var _labels: Array[Label] = []
+var _hint: Label
 var _cursor: Polygon2D
 var _starting := false
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	Audio.stop_music()
 	UI.show_hud(false)
 	GameState.running = false
 	var bg := TextureRect.new()
@@ -28,7 +31,8 @@ func _ready() -> void:
 	add_child(bg)
 	for i in OPTIONS.size():
 		var lab := Label.new()
-		lab.text = OPTIONS[i]
+		lab.text = tr(OPTIONS[i])
+		_labels.append(lab)
 		lab.add_theme_font_override("font", FONT)
 		lab.add_theme_font_size_override("font_size", 48)
 		lab.add_theme_color_override("font_color", INK)
@@ -39,7 +43,7 @@ func _ready() -> void:
 	_cursor.color = INK
 	add_child(_cursor)
 	var hint := Label.new()
-	hint.text = "W / S: escolher     F ou Enter: confirmar"
+	hint.text = tr("W / S: escolher     F ou Enter: confirmar")
 	hint.add_theme_font_override("font", FONT)
 	hint.add_theme_font_size_override("font_size", 24)
 	hint.add_theme_color_override("font_color", Color("dfe9ff"))
@@ -47,6 +51,7 @@ func _ready() -> void:
 	hint.position = Vector2(0, 962)
 	hint.size = Vector2(1536, 30)
 	add_child(hint)
+	_hint = hint
 	_place_cursor()
 
 
@@ -61,17 +66,29 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("move_up", true):
 		_sel = (_sel - 1 + OPTIONS.size()) % OPTIONS.size()
 		_place_cursor()
+		Audio.sfx("select", 1.0, 0.35)
 	elif event.is_action_pressed("move_down", true):
 		_sel = (_sel + 1) % OPTIONS.size()
 		_place_cursor()
+		Audio.sfx("select", 1.0, 0.35)
 	elif event.is_action_pressed("interact") and not event.is_echo():
+		Audio.sfx("select", 1.35, 0.5)
 		if _sel == 0:
 			_start_game()
 		else:
-			UI.say([
-				"Opções em breve.",
-				"Controles: W A S D andam, F interage, I abre a mochila.",
-			])
+			_options()
+
+
+# OPCOES: escolher o idioma (Portugues / English). A escolha fica salva.
+func _options() -> void:
+	var i := await UI.choose(["Português", "English", tr("Voltar")], "Idioma / Language")
+	if i == 0:
+		Lang.set_language("pt")
+	elif i == 1:
+		Lang.set_language("en")
+	for k in _labels.size():
+		_labels[k].text = tr(OPTIONS[k])
+	_hint.text = tr("W / S: escolher     F ou Enter: confirmar")
 
 
 func _start_game() -> void:

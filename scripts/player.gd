@@ -199,7 +199,7 @@ func _update_target() -> void:
 	_target = best
 	_prompt.visible = _target != null
 	if _target != null:
-		_prompt.text = "[F] " + str(_target.display_name)
+		_prompt.text = "[F] " + tr(str(_target.display_name))
 
 
 ## Senta numa posicao (cadeira de comando): sem colisao e sem andar, olhando para a esquerda.

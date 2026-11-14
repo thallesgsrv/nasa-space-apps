@@ -27,7 +27,7 @@ func _ready() -> void:
 	monitorable = false
 	body_entered.connect(_on_body_entered)
 	_t = randf() * 3.0
-	_label = _make_label(place_name, 24, Color("ffffff"), Color("1b2a5c"), 8)
+	_label = _make_label(tr(place_name), 24, Color("ffffff"), Color("1b2a5c"), 8)
 	_label.size = Vector2(340, 32)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.modulate.a = 0.0
