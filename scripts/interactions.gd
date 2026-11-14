@@ -4,7 +4,6 @@ extends Node
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
 
-
 func run(action: String, source: Node, player: Node) -> void:
 	match action:
 		"fridge":
@@ -76,9 +75,18 @@ func _consume(id: String) -> void:
 func _effects_text(effects: Dictionary) -> String:
 	var names := {"food": "Comida", "thirst": "Água", "sleep": "Sono", "health": "Vida"}
 	var parts: Array[String] = []
-	for k in effects:
-		parts.append("%s %+d" % [names.get(k, k), int(effects[k])])
+	for key in effects:
+		parts.append("%s %+d" % [names.get(key, key), int(effects[key])])
 	return ", ".join(parts) + "."
+
+
+func _choose_or_cancel(options: Array, title: String) -> int:
+	if options.is_empty():
+		return -1
+	var idx := await UI.choose(options, title)
+	if idx < 0:
+		return idx
+	return idx
 
 
 # ============================ cafeteria ============================
@@ -100,7 +108,7 @@ func _bunk() -> void:
 	var i := await UI.choose(["Dormir", "Cancelar"], "Beliche (2 vagas)")
 	if i != 0:
 		return
-	UI.lock()  # mantem o tempo parado durante o fade
+	UI.lock()
 	await UI.blink(1.2, 0.8)
 	UI.unlock()
 	GameState.apply_effects({"sleep": 100.0, "food": -10.0, "thirst": -10.0})

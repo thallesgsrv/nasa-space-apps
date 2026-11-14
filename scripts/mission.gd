@@ -97,8 +97,17 @@ func toggle_instrument(id: String) -> bool:
 
 ## Calcula as metricas e os problemas do projeto atual.
 func evaluate() -> Dictionary:
-	var blocking: Array[String] = []
-	var warnings: Array[String] = []
+	var metrics := _compute_metrics()
+	var blocking := _collect_blocking_issues(metrics)
+	var warnings := _collect_warning_issues(metrics)
+	return {
+		"mass": metrics["mass"], "cap": metrics["cap"], "power_gen": metrics["power_gen"], "power_use": metrics["power_use"], "duty": metrics["duty"],
+		"data_raw": metrics["data_raw"], "data_gen": metrics["data_gen"], "downlink": metrics["downlink"], "data_day": metrics["data_day"], "cost": metrics["cost"],
+		"fit": metrics["fit"], "blocking": blocking, "warnings": warnings,
+	}
+
+
+func _compute_metrics() -> Dictionary:
 	var mass := BUS_MASS
 	var power_use := BUS_POWER
 	var cost := BUS_COST
@@ -140,13 +149,29 @@ func evaluate() -> Dictionary:
 	var fit := 1.0
 	if objective != "" and orbit != "" and not OBJECTIVES[objective]["best_orbit"].has(orbit):
 		fit = 0.6
+	return {
+		"mass": mass,
+		"cap": cap,
+		"power_gen": power_gen,
+		"power_use": power_use,
+		"duty": duty,
+		"data_raw": data_raw,
+		"data_gen": data_gen,
+		"downlink": downlink,
+		"data_day": data_day,
+		"cost": cost,
+		"fit": fit,
+		"matching": matching,
+	}
 
-	# --- problemas que impedem o lancamento (revisao de projeto) ---
+
+func _collect_blocking_issues(metrics: Dictionary) -> Array[String]:
+	var blocking: Array[String] = []
 	if objective == "":
 		blocking.append("Defina o objetivo científico.")
 	if instruments.is_empty():
 		blocking.append("Escolha ao menos um instrumento.")
-	elif objective != "" and matching == 0:
+	elif objective != "" and metrics["matching"] == 0:
 		blocking.append("Nenhum instrumento responde ao objetivo (%s)." % OBJECTIVES[objective]["name"])
 	if array_id == "":
 		blocking.append("Escolha o painel solar.")
@@ -156,29 +181,27 @@ func evaluate() -> Dictionary:
 		blocking.append("Escolha a órbita.")
 	if station == "":
 		blocking.append("Escolha a estação terrestre.")
-	if launcher != "" and orbit != "" and mass > cap:
-		if cap <= 0.0:
+	if launcher != "" and orbit != "" and metrics["mass"] > metrics["cap"]:
+		if metrics["cap"] <= 0.0:
 			blocking.append("%s não alcança essa órbita." % LAUNCHERS[launcher]["name"])
 		else:
-			blocking.append("Massa %d kg acima da capacidade do lançador (%d kg)." % [int(mass), int(cap)])
-	if cost > budget():
-		blocking.append("Custo %d M$ acima do orçamento (%d M$)." % [int(cost), int(budget())])
+			blocking.append("Massa %d kg acima da capacidade do lançador (%d kg)." % [int(metrics["mass"]), int(metrics["cap"])])
+	if metrics["cost"] > budget():
+		blocking.append("Custo %d M$ acima do orçamento (%d M$)." % [int(metrics["cost"]), int(budget())])
+	return blocking
 
-	# --- avisos (nao bloqueiam, mas pioram o resultado) ---
-	if duty > 0.0 and duty < 1.0:
-		warnings.append("Energia insuficiente: instrumentos a %d%% do tempo." % int(duty * 100.0))
-	if data_gen > downlink and downlink > 0.0:
-		warnings.append("Comunicação limita os dados: gera %.1f/dia, chegam %.1f/dia." % [data_gen, downlink])
-	if fit < 1.0:
+
+func _collect_warning_issues(metrics: Dictionary) -> Array[String]:
+	var warnings: Array[String] = []
+	if metrics["duty"] > 0.0 and metrics["duty"] < 1.0:
+		warnings.append("Energia insuficiente: instrumentos a %d%% do tempo." % int(metrics["duty"] * 100.0))
+	if metrics["data_gen"] > metrics["downlink"] and metrics["downlink"] > 0.0:
+		warnings.append("Comunicação limita os dados: gera %.1f/dia, chegam %.1f/dia." % [metrics["data_gen"], metrics["downlink"]])
+	if metrics["fit"] < 1.0:
 		warnings.append("Órbita pouco adequada ao objetivo: ciência cai 40%.")
-	if matching < instruments.size() and objective != "":
+	if objective != "" and metrics["matching"] < instruments.size():
 		warnings.append("Há instrumentos sem relação com o objetivo (massa e custo desperdiçados).")
-
-	return {
-		"mass": mass, "cap": cap, "power_gen": power_gen, "power_use": power_use, "duty": duty,
-		"data_raw": data_raw, "data_gen": data_gen, "downlink": downlink, "data_day": data_day, "cost": cost,
-		"fit": fit, "blocking": blocking, "warnings": warnings,
-	}
+	return warnings
 
 
 func review_lines() -> Array[String]:
