@@ -1,44 +1,101 @@
 extends CharacterBody2D
 ## Astronauta controlado pelo jogador: anda para cima, baixo, esquerda e direita.
-## Sem animacao por enquanto: so troca a imagem conforme a direcao.
 ## Teclas: WASD ou setas.
+## Animacoes (assets/player/player_frames.tres): idle/run/hit em down, up e side;
+## roll e death existem so em side (a direita e o lado "natural" do sprite, a esquerda usa flip_h).
 
 @export var speed: float = 300.0
+@export var roll_speed: float = 520.0
 
-@onready var sprite: Sprite2D = $Sprite2D
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 
-const TEX_UP := preload("res://assets/player/player_up.png")
-const TEX_DOWN := preload("res://assets/player/player_down.png")
-const TEX_SIDE := preload("res://assets/player/player_side.png") # sprite original olha para a ESQUERDA
+var _facing := "down"        # "down" | "up" | "side"
+var _flip := false           # true = olhando para a esquerda (so vale em "side")
+var _last_dir := Vector2.DOWN
+var _locked := false         # hit/roll tocando: sem controle
+var _dead := false
+var _roll_dir := Vector2.ZERO
 
 
 func _ready() -> void:
 	_setup_input()
-	_show_sprite(TEX_DOWN, false)
+	sprite.animation_finished.connect(_on_animation_finished)
+	_play("idle")
 
 
 func _physics_process(_delta: float) -> void:
+	if _dead:
+		return
+	if _locked:
+		velocity = _roll_dir * roll_speed
+		move_and_slide()
+		return
+
 	var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	velocity = dir * speed
 	move_and_slide()
 
 	if dir == Vector2.ZERO:
-		return # parado: mantem o ultimo sprite
+		_play("idle")
+		return
 
+	_last_dir = dir
 	# Diagonal: o eixo horizontal vence o empate.
 	if absf(dir.x) >= absf(dir.y):
-		_show_sprite(TEX_SIDE, dir.x > 0.0) # direita = sprite da esquerda espelhado
+		_facing = "side"
+		_flip = dir.x < 0.0
 	elif dir.y < 0.0:
-		_show_sprite(TEX_UP, false)
+		_facing = "up"
 	else:
-		_show_sprite(TEX_DOWN, false)
+		_facing = "down"
+	_play("run")
 
 
-func _show_sprite(tex: Texture2D, flip: bool) -> void:
-	sprite.texture = tex
-	sprite.flip_h = flip
-	# Origem do personagem = pes (centro da base da imagem).
-	sprite.offset = Vector2(0, -tex.get_height() / 2.0)
+## Toca a animacao de dano (o jogador perde o controle ate ela terminar).
+func hit() -> void:
+	if _dead or _locked:
+		return
+	_locked = true
+	_roll_dir = Vector2.ZERO
+	_play("hit", true)
+
+
+## Rolamento na ultima direcao andada.
+func roll() -> void:
+	if _dead or _locked:
+		return
+	_locked = true
+	_roll_dir = _last_dir.normalized()
+	if absf(_roll_dir.x) > 0.1:
+		_flip = _roll_dir.x < 0.0
+	sprite.flip_h = _flip
+	sprite.play("roll_side")
+
+
+## Animacao de morte; o personagem fica deitado no ultimo frame.
+func die() -> void:
+	if _dead:
+		return
+	_dead = true
+	_locked = true
+	velocity = Vector2.ZERO
+	sprite.flip_h = _flip
+	sprite.play("death_side")
+
+
+func _play(base: String, restart: bool = false) -> void:
+	var anim := "%s_%s" % [base, _facing]
+	sprite.flip_h = _flip and _facing == "side"
+	if restart or sprite.animation != anim:
+		sprite.play(anim)
+
+
+func _on_animation_finished() -> void:
+	var anim := String(sprite.animation)
+	if anim.begins_with("hit") or anim.begins_with("roll"):
+		_locked = false
+		_roll_dir = Vector2.ZERO
+		_play("idle", true)
 
 
 ## Cria as acoes de movimento no codigo (setas + WASD), sem mexer no project.godot.
