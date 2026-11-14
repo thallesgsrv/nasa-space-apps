@@ -5,6 +5,8 @@ extends Node
 
 signal changed            # necessidades / vida / nucleo mudaram
 signal inventory_changed  # inventario, armario ou capsula mudaram
+signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel): game over
+signal exploded                # o nucleo ficou 12 s em 100% sem resfriar
 signal notice(text: String)  # aviso curto para a interface mostrar
 
 # --- ajustes (por segundo) ---
@@ -13,7 +15,7 @@ const THIRST_DECAY := 0.8    # agua
 const SLEEP_DECAY := 0.3     # sono
 const HEAT_RISE := 0.6       # temperatura do nucleo sobe sozinha
 const STARVE_DAMAGE := 0.5   # vida perdida por segundo, por necessidade zerada
-const OVERHEAT_DAMAGE := 1.0 # vida perdida por segundo com o nucleo em 100%
+const MELTDOWN_TIME := 12.0  # segundos ate a nave explodir depois que o nucleo chega a 100%
 const HEAT_WARNING := 80.0
 const CAPSULE_TIME := 5.0    # segundos que a capsula demora para voltar da Terra
 const PRODUCE_TIME := 3.0    # segundos para a impressora produzir uma racao
@@ -24,10 +26,14 @@ const BEDS := 4              # vagas para dormir (sistema futuro)
 
 ## id -> nome e efeitos (valores somados as necessidades)
 const ITEMS := {
-	"cafe": {"name": "Café", "effects": {"sleep": 25.0, "thirst": 10.0}},
-	"croquete": {"name": "Croquete", "effects": {"food": 30.0}},
-	"refri": {"name": "Refrigerante", "effects": {"thirst": 35.0}},
-	"racao": {"name": "Ração", "effects": {"food": 50.0}},
+	"cafe": {"name": "Café", "short": "CA", "effects": {"sleep": 25.0, "thirst": 10.0}},
+	"bolacha": {"name": "Bolacha", "short": "BO", "effects": {"food": 30.0}},
+	"refri": {"name": "Refrigerante", "short": "RE", "effects": {"thirst": 35.0}},
+	"racao": {"name": "Ração", "short": "RA", "effects": {"food": 50.0}},
+	# itens da missao 1 (sem efeito ao usar)
+	"pacote_fungos": {"name": "Pacote de fungos", "short": "PF", "effects": {}},
+	"pacote_quente": {"name": "Pacote aquecido", "short": "PQ", "effects": {}},
+	"amostra": {"name": "Amostra centrifugada", "short": "AM", "effects": {}},
 }
 
 var running := false  # so conta tempo durante a partida
@@ -36,14 +42,18 @@ var thirst := 100.0
 var sleep := 100.0
 var health := 100.0
 var heat := 35.0
+var heat_extra_rate := 0.0          # variacao extra da temperatura por segundo (eventos do reator)
+var meltdown_left := -1.0         # contagem para a explosao (-1 = parada)
 
 var inventory: Array[String] = []
 var storage: Array[String] = []   # itens guardados nos armarios (max STORAGE_SLOTS)
 var output_rations := 0           # racoes prontas esperando no terminal de saida
 var capsule_item := ""            # item viajando para a Terra
 var capsule_left := 0.0
-var capsule_ready := ""           # item que voltou mas nao coube na mochila
+var capsule_hold := false         # true: item fica na Terra ate a base liberar (veredito da missao)
+var capsule_ready := ""           # item que chegou da Terra e espera ser retirado (1 espaco)
 var route := ""                   # proxima rota escolhida na sala de controle
+var conditions: Array[String] = []  # doencas/anomalias descobertas no checkup (nenhuma por enquanto)
 var tutorial_done := false
 
 var _heat_warned := false
@@ -53,60 +63,71 @@ func _ready() -> void:
 	_setup_input()
 
 
-func _emit_state_change() -> void:
-	changed.emit()
-
-
-func _emit_inventory_change() -> void:
-	inventory_changed.emit()
-
-
 func reset() -> void:
 	food = 100.0
 	thirst = 100.0
 	sleep = 100.0
 	health = 100.0
 	heat = 35.0
+	meltdown_left = -1.0
+	heat_extra_rate = 0.0
 	inventory.clear()
 	storage.clear()
 	output_rations = 0
 	capsule_item = ""
 	capsule_left = 0.0
+	capsule_hold = false
 	capsule_ready = ""
 	route = ""
+	conditions.clear()
 	tutorial_done = false
 	_heat_warned = false
-	_emit_state_change()
-	_emit_inventory_change()
+	Missions.reset()
+	Voyage.reset()
+	Solar.reset()
+	changed.emit()
+	inventory_changed.emit()
 
 
 func _process(delta: float) -> void:
 	if not running:
 		return
 	# a viagem da capsula segue mesmo com menus abertos
-	if capsule_item != "":
+	if capsule_item != "" and not capsule_hold:
 		capsule_left -= delta
 		if capsule_left <= 0.0:
 			_capsule_arrived()
-	if UI.busy:
+	if UI.busy and not UI.realtime:
 		return  # menus e dialogos congelam o tempo das necessidades
 	food = maxf(0.0, food - FOOD_DECAY * delta)
 	thirst = maxf(0.0, thirst - THIRST_DECAY * delta)
 	sleep = maxf(0.0, sleep - SLEEP_DECAY * delta)
-	heat = minf(100.0, heat + HEAT_RISE * delta)
+	heat = clampf(heat + (HEAT_RISE + heat_extra_rate) * delta, 0.0, 100.0)
 	var damage := 0.0
 	for v in [food, thirst, sleep]:
 		if v <= 0.0:
 			damage += STARVE_DAMAGE
-	if heat >= 100.0:
-		damage += OVERHEAT_DAMAGE
 	health = clampf(health - damage * delta, 0.0, 100.0)
+	if heat >= 100.0:
+		if meltdown_left < 0.0:
+			meltdown_left = MELTDOWN_TIME
+			notice.emit(tr("NÚCLEO CRÍTICO! Resfrie agora: a nave explode em %d segundos!") % int(MELTDOWN_TIME))
+		else:
+			meltdown_left -= delta
+			if meltdown_left <= 0.0:
+				meltdown_left = 0.0
+				running = false
+				changed.emit()
+				exploded.emit()
+				return
+	elif meltdown_left >= 0.0:
+		meltdown_left = -1.0
 	if heat >= HEAT_WARNING and not _heat_warned:
 		_heat_warned = true
-		notice.emit("O núcleo do reator está esquentando!")
+		notice.emit(tr("O núcleo do reator está esquentando!"))
 	elif heat < HEAT_WARNING - 10.0:
 		_heat_warned = false
-	_emit_state_change()
+	changed.emit()
 
 
 # --- necessidades ---
@@ -115,7 +136,7 @@ func apply_effects(effects: Dictionary) -> void:
 	thirst = clampf(thirst + effects.get("thirst", 0.0), 0.0, 100.0)
 	sleep = clampf(sleep + effects.get("sleep", 0.0), 0.0, 100.0)
 	health = clampf(health + effects.get("health", 0.0), 0.0, 100.0)
-	_emit_state_change()
+	changed.emit()
 
 
 func use_item(id: String) -> void:
@@ -124,17 +145,23 @@ func use_item(id: String) -> void:
 
 func cool_core(amount: float) -> void:
 	heat = maxf(0.0, heat - amount)
-	_emit_state_change()
+	if heat < 100.0:
+		meltdown_left = -1.0
+	changed.emit()
 
 
 func heal(amount: float) -> void:
 	health = clampf(health + amount, 0.0, 100.0)
-	_emit_state_change()
+	changed.emit()
 
 
 # --- inventario ---
 func item_name(id: String) -> String:
-	return ITEMS[id]["name"] if ITEMS.has(id) else id
+	return tr(ITEMS[id]["name"]) if ITEMS.has(id) else id
+
+
+func item_short(id: String) -> String:
+	return ITEMS[id]["short"] if ITEMS.has(id) else id.substr(0, 2).to_upper()
 
 
 func inventory_has_room() -> bool:
@@ -145,7 +172,7 @@ func add_item(id: String) -> bool:
 	if not inventory_has_room():
 		return false
 	inventory.append(id)
-	_emit_inventory_change()
+	inventory_changed.emit()
 	return true
 
 
@@ -154,7 +181,7 @@ func remove_item(id: String) -> bool:
 	if i < 0:
 		return false
 	inventory.remove_at(i)
-	_emit_inventory_change()
+	inventory_changed.emit()
 	return true
 
 
@@ -167,7 +194,7 @@ func store_item(id: String) -> bool:
 	if not storage_has_room() or not remove_item(id):
 		return false
 	storage.append(id)
-	_emit_inventory_change()
+	inventory_changed.emit()
 	return true
 
 
@@ -177,7 +204,16 @@ func take_from_storage(id: String) -> bool:
 		return false
 	storage.remove_at(i)
 	inventory.append(id)
-	_emit_inventory_change()
+	inventory_changed.emit()
+	return true
+
+
+func take_storage_at(i: int) -> bool:
+	if i < 0 or i >= storage.size() or not inventory_has_room():
+		return false
+	inventory.append(storage[i])
+	storage.remove_at(i)
+	inventory_changed.emit()
 	return true
 
 
@@ -199,25 +235,32 @@ func unique_ids(list: Array) -> Array[String]:
 
 
 # --- capsula para a Terra ---
-func send_to_earth(id: String) -> bool:
+## hold = true: o item fica na Terra e so volta depois de release_capsule() (base libera).
+func send_to_earth(id: String, hold: bool = false) -> bool:
 	if capsule_item != "" or capsule_ready != "" or not remove_item(id):
 		return false
 	capsule_item = id
+	capsule_hold = hold
 	capsule_left = CAPSULE_TIME
-	_emit_inventory_change()
+	inventory_changed.emit()
 	return true
 
 
+## A base liberou o item: ele volta ao astronauta apos CAPSULE_TIME segundos.
+func release_capsule() -> void:
+	if capsule_item != "" and capsule_hold:
+		capsule_hold = false
+		capsule_left = CAPSULE_TIME
+		inventory_changed.emit()
+
+
 func _capsule_arrived() -> void:
-	var id := capsule_item
+	# a capsula tem 1 espaco: o item fica la ate o astronauta retirar
+	capsule_ready = capsule_item
 	capsule_item = ""
 	capsule_left = 0.0
-	if add_item(id):
-		notice.emit("A cápsula voltou da Terra: %s" % item_name(id))
-	else:
-		capsule_ready = id
-		notice.emit("A cápsula voltou, mas a mochila está cheia!")
-	_emit_inventory_change()
+	notice.emit(tr("Chegou da Terra: %s. Retire na cápsula (armazém).") % item_name(capsule_ready))
+	inventory_changed.emit()
 
 
 func collect_capsule() -> bool:
@@ -237,6 +280,8 @@ func _setup_input() -> void:
 		"interact": [KEY_F, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE],
 		"inventory": [KEY_I, KEY_TAB],
 		"switch_world": [KEY_1, KEY_KP_1],
+		"missions": [KEY_M, KEY_J],
+		"objective": [KEY_V],
 	}
 	for action in binds:
 		if not InputMap.has_action(action):
