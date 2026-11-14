@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -58,6 +58,9 @@ size = Vector2(365, 140)
 
 [sub_resource type="RectangleShape2D" id="s17"]
 size = Vector2(365, 158)
+
+[sub_resource type="RectangleShape2D" id="s18"]
+size = Vector2(140, 265)
 
 [node name="Dormitorio" type="Node2D"]
 script = ExtResource("1_room")
@@ -158,6 +161,15 @@ display_name = "Beliche"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/BelicheDir"]
 shape = SubResource("s17")
+
+[node name="Checkup" type="Area2D" parent="Interativos"]
+position = Vector2(770, 207.5)
+script = ExtResource("3_inter")
+action = "checkup"
+display_name = "Checkup"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Checkup"]
+shape = SubResource("s18")
 
 [node name="Spawns" type="Node2D" parent="."]
 
