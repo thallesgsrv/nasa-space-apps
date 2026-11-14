@@ -25,7 +25,23 @@ const DEFS := {
 			{"id": "retirar", "side": "ESPAÇO", "text": "Retirar a amostra na cápsula (armazém) e ler o resultado da base"},
 		],
 	},
+	"cme": {
+		"title": "Alerta de Ejeção de Massa Coronal (CME)",
+		"steps": [
+			{"id": "solar", "side": "TERRA", "text": "Base: monitorar o terminal solar, conferir o manual e decidir entre alertar ou ignorar (painel do laboratório; tecla 1)"},
+			{"id": "escudos", "side": "ESPAÇO", "text": "Se houver alerta: correr ao controle de energia (sala do reator) e ativar os escudos antes da onda chegar"},
+		],
+	},
+	"viagem": {
+		"title": "Viagem até a rota escolhida",
+		"steps": [
+			{"id": "rota", "side": "ESPAÇO", "text": "Escolher a rota e iniciar a viagem (cadeira de comando, sala de controle)"},
+			{"id": "viajar", "side": "EQUIPE", "text": "Chegar ao destino: a base prevê os perigos e a nave faz as manobras (veja o painel da viagem)"},
+		],
+	},
 }
+
+const ORDER := ["bionutrientes", "viagem", "cme"]   # as missoes comecam nesta ordem
 
 ## Eventos do documento de design (ainda sem minigames; so listados no menu).
 const EVENTS := [
@@ -80,6 +96,8 @@ func start(id: String) -> void:
 		return
 	active = id
 	step = 0
+	if id == "cme":
+		Solar.generate()
 	GameState.notice.emit("Nova missão: %s" % DEFS[id]["title"])
 	changed.emit()
 
@@ -105,9 +123,36 @@ func complete(id: String) -> void:
 		GameState.notice.emit("Missão concluída: %s" % DEFS[active]["title"])
 		active = ""
 		step = 0
+		for next_id in ORDER:           # a proxima missao comeca sozinha
+			if not finished.has(next_id):
+				start(next_id)
+				break
 	else:
 		GameState.notice.emit("Missão atualizada: %s" % steps[step]["text"])
 	changed.emit()
+
+
+## Onde esta o objetivo atual: sala e acao do objeto (usado para guiar com o "!" azul).
+func current_target() -> Dictionary:
+	match current_step_id():
+		"pacotes":
+			return {"room": "armazem", "action": "mission_pacotes"}
+		"aquecer":
+			return {"room": "armazem", "action": "aquecedor"}
+		"centrifugar":
+			return {"room": "sala_controle", "action": "centrifuga"}
+		"enviar", "retirar":
+			return {"room": "armazem", "action": "capsula"}
+		"veredito":
+			return {"room": "laboratorio", "action": "painel_base"}
+		"rota":
+			return {"room": "sala_controle", "action": "assento"}
+		"solar":
+			return {"room": "laboratorio", "action": "painel_base"}
+		"escudos":
+			if Solar.alert_sent and not Solar.resolved:
+				return {"room": "sala_reator", "action": "escudos"}
+	return {}
 
 
 func tracker_text() -> String:
@@ -162,6 +207,17 @@ func take_result() -> Array:
 	result_lines = []
 	complete("retirar")
 	return out
+
+
+## O astronauta come a amostra. Se ela estava em estado de FALHA (mesmo que a base tenha dito
+## sucesso), ele passa mal e perde 50% da vida ATUAL. Se estava boa, ganha um pouco de comida.
+func eat_sample() -> Array:
+	if sample_ok:
+		GameState.apply_effects({"food": 20.0})
+		return ["Você comeu a amostra.", "Estava boa! Comida +20."]
+	var dmg := GameState.health * 0.5
+	GameState.apply_effects({"health": -dmg})
+	return ["Você comeu a amostra.", "Estava estragada! Você passou muito mal e perdeu %d de vida (50%% da vida atual)." % int(round(dmg))]
 
 
 ## Efeitos visiveis para a proxima missao (o risco escondido nao aparece).

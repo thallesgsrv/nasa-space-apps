@@ -4,6 +4,7 @@ extends Node
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
 const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de controle)
+const PLANET_TRANSITION := "res://assets/Viideos/trasiicao.ogv"  # cutscene de troca de planeta
 
 
 func run(action: String, source: Node, player: Node) -> void:
@@ -12,8 +13,8 @@ func run(action: String, source: Node, player: Node) -> void:
 			await _cafeteria_item(source, "refri", "Geladeira", "Beber agora")
 		"coffee":
 			await _cafeteria_item(source, "cafe", "Máquina de café", "Tomar agora")
-		"croquete":
-			await _cafeteria_item(source, "croquete", "Vitrine de croquetes", "Comer agora")
+		"bolacha":
+			await _cafeteria_item(source, "bolacha", "Vitrine de bolachas", "Comer agora")
 		"bunk":
 			await _bunk()
 		"terminal_saida":
@@ -28,6 +29,8 @@ func run(action: String, source: Node, player: Node) -> void:
 			await _nucleo()
 		"botiquim":
 			await _botiquim()
+		"escudos":
+			await _escudos()
 		"propulsor":
 			await UI.say(["Painel do propulsor.", "Todos os sistemas estáveis. (Controle do propulsor em desenvolvimento.)"])
 		"assento":
@@ -48,12 +51,15 @@ func run(action: String, source: Node, player: Node) -> void:
 
 # ============================ tutorial ============================
 func show_tutorial() -> void:
+	var skip := await UI.choose(["Ver tutorial", "Pular tutorial"], "Tutorial")
+	if skip != 0:
+		return
 	await UI.say([
 		"Use W A S D (ou as setas) para andar.",
 		"Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar.",
 		"Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus.",
 		"Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra).",
-		"Aperte M (ou J) para ver as missões. O objetivo atual aparece no canto da tela.",
+		"Aperte M (ou J) para ver as missões. O objetivo atual aparece no canto da tela por um tempo; depois fica só um \"!\" (clique nele ou aperte V para ver de novo).",
 		"Fique de olho nas barras de comida, sono e água lá embaixo!",
 	])
 
@@ -86,6 +92,9 @@ Espaço vazio.   Esc: fechar"
 
 
 func _consume(id: String) -> void:
+	if id == "amostra":
+		await _comer_amostra()
+		return
 	if GameState.ITEMS[id]["effects"].is_empty():
 		await UI.say("%s não pode ser usado assim." % GameState.item_name(id))
 		return
@@ -94,7 +103,19 @@ func _consume(id: String) -> void:
 		await UI.say("Você usou %s. %s" % [GameState.item_name(id), _effects_text(GameState.ITEMS[id]["effects"])])
 
 
+# Comer a amostra: se estiver estragada (mesmo que a base tenha dito sucesso) tira 50% da vida atual.
+func _comer_amostra() -> void:
+	if Missions.is_step("enviar"):
+		await UI.say("Você precisa enviar esta amostra à base antes. Não dá para comê-la agora.")
+		return
+	if not GameState.remove_item("amostra"):
+		return
+	await UI.say(Missions.eat_sample())
+
+
 func _effects_text(effects: Dictionary) -> String:
+	if effects.is_empty():
+		return "Sem efeito."
 	var names := {"food": "Comida", "thirst": "Água", "sleep": "Sono", "health": "Vida"}
 	var parts: Array[String] = []
 	for k in effects:
@@ -234,6 +255,9 @@ func _capsula_ocupada() -> bool:
 
 ## true = acabou (enviou); false = volta ao menu
 func _capsula_enviar() -> bool:
+	if not Voyage.comms_ok():
+		await UI.say("Sem contato com a base: a cápsula está bloqueada pela interferência.")
+		return false
 	if await _capsula_ocupada():
 		return false
 	var ids := GameState.unique_ids(GameState.inventory)
@@ -288,8 +312,15 @@ func _capsula_retirar() -> bool:
 func _nucleo() -> void:
 	while true:
 		var title := "Núcleo %d%%" % int(round(GameState.heat))
-		var i := await UI.choose(["Resfriar núcleo", "Ver temperatura", "Fechar"], title)
-		if i == 0:
+		if GameState.meltdown_left >= 0.0:
+			title += "  EXPLODE EM %d s" % ceili(GameState.meltdown_left)
+		var opts: Array = ["Resfriar núcleo", "Ver temperatura", "Fechar"]
+		if Voyage.event == "reactor":
+			opts.insert(2, "Ajustar válvulas (URGENTE)")
+		var i := await UI.choose(opts, title)
+		if opts[maxi(i, 0)] == "Ajustar válvulas (URGENTE)" and i >= 0:
+			await _valvulas()
+		elif i == 0:
 			GameState.cool_core(50.0)
 			await UI.say("Sistema de resfriamento ativado. Núcleo em %d%%." % int(round(GameState.heat)))
 		elif i == 1:
@@ -322,17 +353,51 @@ func _assento(source: Node, player: Node) -> void:
 	var stand_pos: Vector2 = player.global_position
 	player.sit(seat.global_position)
 	while true:
-		var title := "Rota: " + (GameState.route if GameState.route != "" else "nenhuma")
+		var title := ""
 		var opts: Array = []
-		for r in ROUTES:
-			opts.append("Ir para " + r)
+		var acts: Array = []
+		if Voyage.active:
+			title = "Viagem: %s" % Voyage.route
+			opts.append("Mapa espacial")
+			acts.append("mapa")
+			if Voyage.maneuver_available():
+				opts.append("Manobra evasiva")
+				acts.append("manobra")
+		elif Missions.is_step("rota"):
+			title = "Escolha a rota"
+			for r in ROUTES:
+				opts.append("Iniciar viagem: " + r)
+				acts.append("rota:" + r)
+		else:
+			title = "Rota: " + (GameState.route if GameState.route != "" else "nenhuma")
+			for r in ROUTES:
+				opts.append("Ir para " + r)
+				acts.append("define:" + r)
 		opts.append("Levantar")
+		acts.append("levantar")
 		var i := await UI.choose(opts, title)
-		if i < 0 or i >= ROUTES.size():
+		if i < 0 or acts[i] == "levantar":
 			break
-		GameState.route = ROUTES[i]
-		await UI.say(["Próxima rota definida: %s." % ROUTES[i], "(A viagem ainda não foi implementada.)"])
+		var a: String = acts[i]
+		if a == "mapa":
+			await UI.say(Voyage.map_text())
+		elif a == "manobra":
+			await UI.say(Voyage.maneuver())
+		elif a.begins_with("rota:"):
+			var r := a.substr(5)
+			var c := await UI.choose(["Confirmar viagem para %s" % r, "Voltar"], "Rota: " + r)
+			if c == 0:
+				Voyage.start(r)
+				Missions.complete("rota")
+				await planet_transition()
+				await UI.say(["Viagem iniciada: %s." % r, "A base prevê os perigos; a nave faz as manobras. Cuide da energia e do combustível!"])
+				break
+		else:
+			var r2 := a.substr(7)
+			GameState.route = r2
+			await UI.say(["Próxima rota definida: %s." % r2, "(A viagem começa na missão de viagem.)"])
 	player.stand(stand_pos)
+
 
 
 # ============================ missoes ============================
@@ -397,6 +462,12 @@ func _centrifuga() -> void:
 # Missao 1 (Terra): a base conhece as coloracoes e decide sucesso ou falha.
 func _painel_base() -> void:
 	var table := "Colorações de SUCESSO: %s.   Colorações de FALHA: %s." % [", ".join(Missions.COLORS_OK), ", ".join(Missions.COLORS_FAIL)]
+	if not Voyage.comms_ok():
+		await UI.say(["SEM CONTATO com a nave (%d s)." % ceili(Voyage.blackout_left), "Painel da base indisponível durante a interferência."])
+		return
+	if not Missions.is_step("veredito") and (Voyage.active or Missions.is_step("solar")):
+		await _base_viagem()
+		return
 	if not Missions.is_step("veredito"):
 		if Missions.data_sent or not Missions.finished.is_empty():
 			await UI.say(["Painel da base.", table])
@@ -444,3 +515,96 @@ func _checkup() -> void:
 	else:
 		lines.append("Detectado: " + ", ".join(GameState.conditions) + ".")
 	await UI.say(lines)
+
+
+# ============================ Missao 2: base e reator ============================
+func _base_viagem() -> void:
+	while true:
+		var opts: Array = []
+		var acts: Array = []
+		if Voyage.active:
+			opts.append_array(["Monitor da nave", "Previsão de perigos", "Enviar alerta à nave"])
+			acts.append_array(["monitor", "previsao", "alerta"])
+		if Missions.is_step("solar"):
+			opts.append("Terminal solar (CME)")
+			acts.append("solar")
+		opts.append("Fechar")
+		acts.append("fechar")
+		var i := await UI.choose(opts, "Painel da base")
+		if i < 0 or acts[i] == "fechar":
+			return
+		match String(acts[i]):
+			"monitor":
+				await UI.show_panel(Voyage.monitor_text())
+			"previsao":
+				await UI.show_panel(Voyage.forecast_text())
+			"alerta":
+				await _enviar_alerta()
+			"solar":
+				await _terminal_solar()
+				if not Missions.is_step("solar"):
+					return
+
+
+func _enviar_alerta() -> void:
+	if Voyage.event == "asteroid":
+		# minigame de calculo: tempo de impacto = distancia / velocidade
+		var speed: float = Voyage.asteroid["speed"]
+		var dist := int(speed * float(Voyage.asteroid["eta"]))
+		await UI.say(["Objeto detectado: velocidade %.1f km/s, distância %d km." % [speed, dist], "Calcule: tempo = distância ÷ velocidade."])
+		var vals: Array = Voyage.asteroid_choices()
+		var labels: Array = []
+		for v in vals:
+			labels.append("Impacto em %d s" % int(v))
+		var k := await UI.choose(labels, "Quando ele atinge a nave?")
+		if k >= 0:
+			Voyage.set_estimate(int(vals[k]))
+	await UI.say(Voyage.send_alert())
+
+
+# Valvulas do reator (astronauta): girar uma valvula gira tambem as vizinhas. O tempo corre durante o minigame.
+func _valvulas() -> void:
+	UI.realtime = true
+	while Voyage.event == "reactor":
+		var opts: Array = []
+		for k in 5:
+			opts.append("Girar válvula %d" % (k + 1))
+		opts.append("Sair")
+		var i := await UI.choose(opts, "%s   Eficiência %d%%" % [Voyage.valve_state_text(), int(Voyage.reactor_eff())])
+		if i < 0 or i >= 5:
+			break
+		Voyage.press(i)
+	UI.realtime = false
+
+
+# Cutscene usada SEMPRE que a nave troca de planeta (saida para um novo destino).
+func planet_transition() -> void:
+	await UI.play_video(PLANET_TRANSITION)
+	await UI.fade_to(0.0, 0.6)
+
+
+# ============================ Missao 3: CME ============================
+# Base: terminal solar em "tempo real" + manual; decide alertar ou ignorar.
+func _terminal_solar() -> void:
+	while true:
+		await UI.show_panel("", Callable(Solar, "terminal_text"))
+		var i := await UI.choose(["Enviar alerta de abrigo", "Ignorar (falso alarme)", "Ver o terminal de novo"], "Decisão da base")
+		if i == 0 or i == 1:
+			await UI.say(Solar.decide(i == 0))
+			return
+		if i < 0:
+			return
+
+
+# Astronauta: chave dos escudos no controle de energia (sala do reator, maquinas da esquerda).
+func _escudos() -> void:
+	if not Solar.alert_sent or Solar.resolved:
+		await UI.say("Controle de energia e suporte de vida. Nenhum alerta solar ativo.")
+		return
+	if Solar.shield_on:
+		await UI.say("Os escudos já estão ativos. Aguarde a onda passar.")
+		return
+	var i := await UI.choose(["Ativar escudos", "Cancelar"], "Controle de energia")
+	if i == 0:
+		Solar.activate_shield()
+		await UI.say(["Escudos ativados!", "Energia redirecionada. Aguarde a onda passar."])

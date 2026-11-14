@@ -58,6 +58,7 @@ size = Vector2(272, 186)
 
 [node name="Armazem" type="Node2D"]
 script = ExtResource("1_room")
+place_name = "Armazém"
 
 [node name="Fundo" type="Sprite2D" parent="."]
 centered = false
@@ -112,6 +113,7 @@ position = Vector2(775, 833.5)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/cafeteria.tscn"
 target_spawn = "from_armazem"
+place_name = "Cafeteria"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria"]
 shape = SubResource("s10")
