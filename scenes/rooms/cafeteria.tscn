@@ -97,6 +97,7 @@ size = Vector2(145, 180)
 
 [node name="Cafeteria" type="Node2D"]
 script = ExtResource("1_room")
+place_name = "Cafeteria"
 
 [node name="Fundo" type="Sprite2D" parent="."]
 centered = false
@@ -199,6 +200,7 @@ position = Vector2(625, 168)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/armazem.tscn"
 target_spawn = "from_cafeteria"
+place_name = "Armazém"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_armazem"]
 shape = SubResource("s22")
@@ -208,6 +210,7 @@ position = Vector2(1230, 266)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/sala_reator.tscn"
 target_spawn = "from_cafeteria"
+place_name = "Sala do reator"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_sala_reator"]
 shape = SubResource("s23")
@@ -217,6 +220,7 @@ position = Vector2(129, 480)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/sala_controle.tscn"
 target_spawn = "from_cafeteria"
+place_name = "Sala de controle"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_sala_controle"]
 shape = SubResource("s24")
@@ -226,6 +230,7 @@ position = Vector2(1407, 480)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/camara_propulsao.tscn"
 target_spawn = "from_cafeteria"
+place_name = "Câmara de propulsão"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_camara_propulsao"]
 shape = SubResource("s25")
@@ -235,6 +240,7 @@ position = Vector2(770, 853)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/dormitorio.tscn"
 target_spawn = "from_cafeteria"
+place_name = "Dormitório"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_dormitorio"]
 shape = SubResource("s26")
@@ -259,13 +265,13 @@ display_name = "Café"
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/MaquinaCafe"]
 shape = SubResource("s28")
 
-[node name="Croquetes" type="Area2D" parent="Interativos"]
+[node name="Bolachas" type="Area2D" parent="Interativos"]
 position = Vector2(1088.5, 276)
 script = ExtResource("3_inter")
-action = "croquete"
-display_name = "Croquete"
+action = "bolacha"
+display_name = "Bolacha"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Croquetes"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/Bolachas"]
 shape = SubResource("s29")
 
 [node name="Spawns" type="Node2D" parent="."]

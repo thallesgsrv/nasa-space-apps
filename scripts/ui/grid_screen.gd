@@ -10,7 +10,7 @@ const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
 const INK := Color("1b2a5c")
 const CURSOR_COLOR := Color("1f5cff")
 const ICON_COLORS := {
-	"cafe": Color("8a5a3a"), "croquete": Color("e0963a"),
+	"cafe": Color("8a5a3a"), "bolacha": Color("e0b43a"),
 	"refri": Color("d44a4a"), "racao": Color("5aa860"),
 	"pacote_fungos": Color("7a5aa8"), "pacote_quente": Color("c8602a"), "amostra": Color("2a9aa8"),
 }
@@ -44,6 +44,9 @@ var _desc_rect := Rect2()
 var _preview_rect := Rect2()
 var _icons: Array[ColorRect] = []
 var _icon_labels: Array[Label] = []
+var _icon_tex: Array[TextureRect] = []   # imagem do item (quando existe em ItemIcons)
+var _t := 0.0
+var _prev_tex: TextureRect
 var _cursor: Control
 var _desc: Label
 var _prev_icon: ColorRect
@@ -104,6 +107,16 @@ func configure(which: String) -> void:
 		icon.add_child(lab)
 		_icons.append(icon)
 		_icon_labels.append(lab)
+		var img := TextureRect.new()
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		img.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		img.position = box.position
+		img.size = box.size
+		img.visible = false
+		add_child(img)
+		_icon_tex.append(img)
 
 	_cursor = Control.new()
 	_cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -124,6 +137,15 @@ func configure(which: String) -> void:
 		_prev_icon.position = p.position + Vector2((p.size.x - 150.0) / 2.0, 36)
 		_prev_icon.visible = false
 		add_child(_prev_icon)
+		_prev_tex = TextureRect.new()
+		_prev_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_prev_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_prev_tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_prev_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_prev_tex.size = Vector2(190, 190)
+		_prev_tex.position = p.position + Vector2((p.size.x - 190.0) / 2.0, 16)
+		_prev_tex.visible = false
+		add_child(_prev_tex)
 		_prev_label = _label("", 64, Color.WHITE)
 		_prev_label.size = _prev_icon.size
 		_prev_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -148,15 +170,19 @@ func set_items(list: Array) -> void:
 func refresh() -> void:
 	for i in slots.size():
 		var id: String = items[i]
-		_icons[i].visible = id != ""
-		if id != "":
+		var has_img := id != "" and ItemIcons.has_icon(id)
+		_icons[i].visible = id != "" and not has_img
+		_icon_tex[i].visible = has_img
+		if id != "" and not has_img:
 			_icons[i].color = ICON_COLORS.get(id, Color("6a7ad0"))
 			_icon_labels[i].text = GameState.item_short(id)
 	var sel_id: String = items[selected]
 	_desc.text = str(desc_provider.call(selected, sel_id)) if desc_provider.is_valid() else sel_id
 	if _prev_icon != null:
-		_prev_icon.visible = sel_id != ""
-		if sel_id != "":
+		var sel_img := sel_id != "" and ItemIcons.has_icon(sel_id)
+		_prev_icon.visible = sel_id != "" and not sel_img
+		_prev_tex.visible = sel_img
+		if sel_id != "" and not sel_img:
 			_prev_icon.color = ICON_COLORS.get(sel_id, Color("6a7ad0"))
 			_prev_label.text = GameState.item_short(sel_id)
 		_prev_name.text = GameState.item_name(sel_id) if sel_id != "" else "Vazio"
@@ -164,6 +190,15 @@ func refresh() -> void:
 	_cursor.position = r.position
 	_cursor.size = r.size
 	_cursor.queue_redraw()
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	for i in _icon_tex.size():
+		if _icon_tex[i].visible:
+			_icon_tex[i].texture = ItemIcons.frame_at(items[i], _t)
+	if _prev_tex != null and _prev_tex.visible:
+		_prev_tex.texture = ItemIcons.frame_at(items[selected], _t)
 
 
 func _draw_cursor() -> void:

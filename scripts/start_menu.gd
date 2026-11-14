@@ -5,7 +5,7 @@ extends Control
 const BG := preload("res://assets/ui/start_bg.png")
 const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
 const INK := Color("1b2a5c")
-const GAME_SCENE := "res://scenes/game.tscn"
+const GAME_SCENE := "res://scenes/cutscene_intro.tscn"   # cutscene inicial; depois dela entra no jogo
 
 # interior da caixa de texto desenhada no start_bg.png (x, y, largura, altura)
 const BOX := Rect2(113, 362, 610, 276)

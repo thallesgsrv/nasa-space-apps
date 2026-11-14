@@ -5,6 +5,8 @@ extends Node
 
 signal changed            # necessidades / vida / nucleo mudaram
 signal inventory_changed  # inventario, armario ou capsula mudaram
+signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel): game over
+signal exploded                # o nucleo ficou 12 s em 100% sem resfriar
 signal notice(text: String)  # aviso curto para a interface mostrar
 
 # --- ajustes (por segundo) ---
@@ -13,7 +15,7 @@ const THIRST_DECAY := 0.8    # agua
 const SLEEP_DECAY := 0.3     # sono
 const HEAT_RISE := 0.6       # temperatura do nucleo sobe sozinha
 const STARVE_DAMAGE := 0.5   # vida perdida por segundo, por necessidade zerada
-const OVERHEAT_DAMAGE := 1.0 # vida perdida por segundo com o nucleo em 100%
+const MELTDOWN_TIME := 12.0  # segundos ate a nave explodir depois que o nucleo chega a 100%
 const HEAT_WARNING := 80.0
 const CAPSULE_TIME := 5.0    # segundos que a capsula demora para voltar da Terra
 const PRODUCE_TIME := 3.0    # segundos para a impressora produzir uma racao
@@ -25,7 +27,7 @@ const BEDS := 4              # vagas para dormir (sistema futuro)
 ## id -> nome e efeitos (valores somados as necessidades)
 const ITEMS := {
 	"cafe": {"name": "Café", "short": "CA", "effects": {"sleep": 25.0, "thirst": 10.0}},
-	"croquete": {"name": "Croquete", "short": "CR", "effects": {"food": 30.0}},
+	"bolacha": {"name": "Bolacha", "short": "BO", "effects": {"food": 30.0}},
 	"refri": {"name": "Refrigerante", "short": "RE", "effects": {"thirst": 35.0}},
 	"racao": {"name": "Ração", "short": "RA", "effects": {"food": 50.0}},
 	# itens da missao 1 (sem efeito ao usar)
@@ -40,6 +42,8 @@ var thirst := 100.0
 var sleep := 100.0
 var health := 100.0
 var heat := 35.0
+var heat_extra_rate := 0.0          # variacao extra da temperatura por segundo (eventos do reator)
+var meltdown_left := -1.0         # contagem para a explosao (-1 = parada)
 
 var inventory: Array[String] = []
 var storage: Array[String] = []   # itens guardados nos armarios (max STORAGE_SLOTS)
@@ -65,6 +69,8 @@ func reset() -> void:
 	sleep = 100.0
 	health = 100.0
 	heat = 35.0
+	meltdown_left = -1.0
+	heat_extra_rate = 0.0
 	inventory.clear()
 	storage.clear()
 	output_rations = 0
@@ -77,6 +83,8 @@ func reset() -> void:
 	tutorial_done = false
 	_heat_warned = false
 	Missions.reset()
+	Voyage.reset()
+	Solar.reset()
 	changed.emit()
 	inventory_changed.emit()
 
@@ -89,19 +97,31 @@ func _process(delta: float) -> void:
 		capsule_left -= delta
 		if capsule_left <= 0.0:
 			_capsule_arrived()
-	if UI.busy:
+	if UI.busy and not UI.realtime:
 		return  # menus e dialogos congelam o tempo das necessidades
 	food = maxf(0.0, food - FOOD_DECAY * delta)
 	thirst = maxf(0.0, thirst - THIRST_DECAY * delta)
 	sleep = maxf(0.0, sleep - SLEEP_DECAY * delta)
-	heat = minf(100.0, heat + HEAT_RISE * delta)
+	heat = clampf(heat + (HEAT_RISE + heat_extra_rate) * delta, 0.0, 100.0)
 	var damage := 0.0
 	for v in [food, thirst, sleep]:
 		if v <= 0.0:
 			damage += STARVE_DAMAGE
-	if heat >= 100.0:
-		damage += OVERHEAT_DAMAGE
 	health = clampf(health - damage * delta, 0.0, 100.0)
+	if heat >= 100.0:
+		if meltdown_left < 0.0:
+			meltdown_left = MELTDOWN_TIME
+			notice.emit("NÚCLEO CRÍTICO! Resfrie agora: a nave explode em %d segundos!" % int(MELTDOWN_TIME))
+		else:
+			meltdown_left -= delta
+			if meltdown_left <= 0.0:
+				meltdown_left = 0.0
+				running = false
+				changed.emit()
+				exploded.emit()
+				return
+	elif meltdown_left >= 0.0:
+		meltdown_left = -1.0
 	if heat >= HEAT_WARNING and not _heat_warned:
 		_heat_warned = true
 		notice.emit("O núcleo do reator está esquentando!")
@@ -125,6 +145,8 @@ func use_item(id: String) -> void:
 
 func cool_core(amount: float) -> void:
 	heat = maxf(0.0, heat - amount)
+	if heat < 100.0:
+		meltdown_left = -1.0
 	changed.emit()
 
 
@@ -259,6 +281,7 @@ func _setup_input() -> void:
 		"inventory": [KEY_I, KEY_TAB],
 		"switch_world": [KEY_1, KEY_KP_1],
 		"missions": [KEY_M, KEY_J],
+		"objective": [KEY_V],
 	}
 	for action in binds:
 		if not InputMap.has_action(action):

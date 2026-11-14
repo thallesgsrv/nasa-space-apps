@@ -26,6 +26,8 @@ func _ready() -> void:
 	player = astronaut
 	scientist = SCIENTIST_SCENE.instantiate()
 	fade.color.a = 1.0 # comeca preto e clareia
+	GameState.exploded.connect(_on_exploded)
+	GameState.failed.connect(_on_failed)
 	UI.fade_to(0.0, 0.0) # tira o escurecimento do menu inicial
 	UI.show_hud(true)
 	GameState.running = true
@@ -69,6 +71,9 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 	if spawn_name != "":
 		player.global_position = _room.get_spawn_position(spawn_name)
 	player.velocity = Vector2.ZERO
+	var place = _room.get("place_name")
+	if place != null and String(place) != "":
+		UI.toast(String(place), 2.2)
 
 
 func _fade_to(alpha: float) -> void:
@@ -115,3 +120,27 @@ func _swap_player(next: CharacterBody2D) -> void:
 	player = next
 	world.add_child(player)
 	player.velocity = Vector2.ZERO
+
+
+# O nucleo ficou 12 s em 100%: a nave explode.
+func _on_exploded() -> void:
+	player.locked = true
+	UI.lock()
+	await UI.flash_white()
+	UI.unlock()
+	await UI.say(["BOOM!", "O núcleo do reator superaqueceu e a nave explodiu.", "Fim de jogo."])
+	var i := await UI.choose(["Recomeçar", "Menu inicial"], "Game over")
+	GameState.reset()
+	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")
+
+
+# A missao falhou (colisao, tempo, energia ou combustivel): game over.
+func _on_failed(reason: String) -> void:
+	player.locked = true
+	UI.lock()
+	await UI.fade_to(1.0, 0.8)
+	UI.unlock()
+	await UI.say(["MISSÃO FALHOU", reason, "Fim de jogo."])
+	var i := await UI.choose(["Recomeçar", "Menu inicial"], "Game over")
+	GameState.reset()
+	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")
