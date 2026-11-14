@@ -1,19 +1,19 @@
-[gd_scene load_steps=3 format=3 uid="uid://cc8ip2q18qqjq"]
+[gd_scene format=3 uid="uid://cc8ip2q18qqjq"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://dqe2go4jdm014" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 
-[node name="Game" type="Node"]
+[node name="Game" type="Node" unique_id=2134562090]
 script = ExtResource("1_game")
 
-[node name="World" type="Node2D" parent="."]
+[node name="World" type="Node2D" parent="." unique_id=36229977]
 
-[node name="Player" parent="World" instance=ExtResource("2_player")]
+[node name="Player" parent="World" unique_id=1402941882 instance=ExtResource("2_player")]
 
-[node name="FadeLayer" type="CanvasLayer" parent="."]
+[node name="FadeLayer" type="CanvasLayer" parent="." unique_id=2046758743]
 layer = 10
 
-[node name="Fade" type="ColorRect" parent="FadeLayer"]
+[node name="Fade" type="ColorRect" parent="FadeLayer" unique_id=1023617640]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
