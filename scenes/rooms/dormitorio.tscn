@@ -1,102 +1,165 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=23 format=3]
+
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
-[ext_resource type="Texture2D" path="res://assets/rooms/dormitorio.png" id="3_bg"]
+[ext_resource type="Script" path="res://scripts/interactable.gd" id="3_inter"]
+[ext_resource type="Texture2D" path="res://assets/rooms/dormitorio.png" id="4_bg"]
 
 [sub_resource type="RectangleShape2D" id="s0"]
-size = Vector2(593.9, 2901.3)
+size = Vector2(392, 1700)
 
 [sub_resource type="RectangleShape2D" id="s1"]
-size = Vector2(1788.6, 2901.3)
+size = Vector2(448, 1700)
 
 [sub_resource type="RectangleShape2D" id="s2"]
-size = Vector2(3754.7, 873.8)
+size = Vector2(2200, 375)
 
 [sub_resource type="RectangleShape2D" id="s3"]
-size = Vector2(3754.7, 1493.3)
+size = Vector2(2200, 505)
 
 [sub_resource type="RectangleShape2D" id="s4"]
-size = Vector2(238.9, 259.4)
+size = Vector2(365, 285)
 
 [sub_resource type="RectangleShape2D" id="s5"]
-size = Vector2(285, 262.8)
+size = Vector2(365, 285)
 
 [sub_resource type="RectangleShape2D" id="s6"]
-size = Vector2(273.1, 148.5)
+size = Vector2(193, 277)
 
 [sub_resource type="RectangleShape2D" id="s7"]
-size = Vector2(80.2, 109.2)
+size = Vector2(197, 277)
 
 [sub_resource type="RectangleShape2D" id="s8"]
-size = Vector2(119.5, 319.1)
+size = Vector2(120, 213)
 
 [sub_resource type="RectangleShape2D" id="s9"]
-size = Vector2(196.3, 194.6)
+size = Vector2(240, 260)
 
 [sub_resource type="RectangleShape2D" id="s10"]
-size = Vector2(179.2, 59.7)
+size = Vector2(285, 253)
+
+[sub_resource type="RectangleShape2D" id="s11"]
+size = Vector2(112, 320)
+
+[sub_resource type="RectangleShape2D" id="s12"]
+size = Vector2(193, 187)
+
+[sub_resource type="RectangleShape2D" id="s13"]
+size = Vector2(280, 143)
+
+[sub_resource type="RectangleShape2D" id="s14"]
+size = Vector2(83, 108)
+
+[sub_resource type="RectangleShape2D" id="s15"]
+size = Vector2(160, 43)
+
+[sub_resource type="RectangleShape2D" id="s16"]
+size = Vector2(365, 140)
+
+[sub_resource type="RectangleShape2D" id="s17"]
+size = Vector2(365, 158)
 
 [node name="Dormitorio" type="Node2D"]
 script = ExtResource("1_room")
 
 [node name="Fundo" type="Sprite2D" parent="."]
 centered = false
-texture = ExtResource("3_bg")
+texture = ExtResource("4_bg")
 
 [node name="Colisoes" type="StaticBody2D" parent="."]
 
 [node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(-215, 938.7)
+position = Vector2(-104, 550)
 shape = SubResource("s0")
 
 [node name="ParedeDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(2348.4, 938.7)
+position = Vector2(1676, 550)
 shape = SubResource("s1")
 
 [node name="ParedeTopo" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1365.3, -75.1)
+position = Vector2(800, -112.5)
 shape = SubResource("s2")
 
 [node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1365.3, 1642.7)
+position = Vector2(800, 1147.5)
 shape = SubResource("s3")
 
-[node name="Escrivaninha" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(204.8, 539.3)
+[node name="BelicheEsq" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(467.5, 217.5)
 shape = SubResource("s4")
 
-[node name="MesaCentral" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(770.6, 588.8)
+[node name="BelicheDir" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(1072.5, 217.5)
 shape = SubResource("s5")
 
-[node name="Sofa" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(230.4, 816.6)
+[node name="ArmarioPlantaEsq" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(188.5, 213.5)
 shape = SubResource("s6")
 
-[node name="MesinhaPlanta" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(424.1, 836.3)
+[node name="ArmarioPlantaDir" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(1353.5, 213.5)
 shape = SubResource("s7")
 
-[node name="EstanteLixeira" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1399.5, 526.5)
+[node name="Terminal" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(770, 181.5)
 shape = SubResource("s8")
 
-[node name="BancadaCafe" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1361.1, 793.6)
+[node name="Escrivaninha" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(210, 538)
 shape = SubResource("s9")
+
+[node name="MesaCentro" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(772.5, 591.5)
+shape = SubResource("s10")
+
+[node name="Estante" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(1396, 532)
+shape = SubResource("s11")
+
+[node name="BancadaCafe" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(1358.5, 798.5)
+shape = SubResource("s12")
+
+[node name="Sofa" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(232, 816.5)
+shape = SubResource("s13")
+
+[node name="MesinhaPlanta" type="CollisionShape2D" parent="Colisoes"]
+position = Vector2(426.5, 836)
+shape = SubResource("s14")
 
 [node name="Portas" type="Node2D" parent="."]
 
 [node name="Porta_cafeteria" type="Area2D" parent="Portas"]
-position = Vector2(772.3, 866.1)
+position = Vector2(770, 873.5)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/cafeteria.tscn"
 target_spawn = "from_dormitorio"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria"]
-shape = SubResource("s10")
+shape = SubResource("s15")
+
+[node name="Interativos" type="Node2D" parent="."]
+
+[node name="BelicheEsq" type="Area2D" parent="Interativos"]
+position = Vector2(467.5, 334)
+script = ExtResource("3_inter")
+action = "bunk"
+display_name = "Beliche"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/BelicheEsq"]
+shape = SubResource("s16")
+
+[node name="BelicheDir" type="Area2D" parent="Interativos"]
+position = Vector2(1072.5, 325)
+script = ExtResource("3_inter")
+action = "bunk"
+display_name = "Beliche"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/BelicheDir"]
+shape = SubResource("s17")
 
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="from_cafeteria" type="Marker2D" parent="Spawns"]
-position = Vector2(768, 802.1)
+position = Vector2(770, 800)
