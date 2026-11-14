@@ -99,7 +99,7 @@ func start(route_name: String) -> void:
 		time_left += 60.0
 	_roll_next()
 	GameState.route = route_name
-	GameState.notice.emit("Viagem iniciada: %s" % route_name)
+	GameState.notice.emit(tr("Viagem iniciada: %s") % route_name)
 	changed.emit()
 
 
@@ -127,7 +127,7 @@ func _tick(delta: float) -> void:
 			blackout_left = 0.0
 			if event == "comm":
 				event = ""
-			GameState.notice.emit("Comunicação com a base restabelecida.")
+			GameState.notice.emit(tr("Comunicação com a base restabelecida."))
 
 	next_in -= delta
 	if next_in <= 0.0:
@@ -146,11 +146,11 @@ func _tick(delta: float) -> void:
 	if progress >= 100.0:
 		_arrive()
 	elif energy <= 0.0:
-		_fail("A energia da nave acabou. Tudo desligou no escuro.")
+		_fail(tr("A energia da nave acabou. Tudo desligou no escuro."))
 	elif fuel <= 0.0:
-		_fail("O combustível acabou. A nave ficou à deriva.")
+		_fail(tr("O combustível acabou. A nave ficou à deriva."))
 	elif time_left <= 0.0:
-		_fail("O tempo da missão esgotou antes da chegada.")
+		_fail(tr("O tempo da missão esgotou antes da chegada."))
 	else:
 		changed.emit()
 
@@ -170,7 +170,7 @@ func _trigger(kind: String) -> void:
 	match kind:
 		"comm":
 			blackout_left = BLACKOUT_TIME
-			GameState.notice.emit("Interferência na comunicação! Sem contato com a base por %d s." % int(BLACKOUT_TIME))
+			GameState.notice.emit(tr("Interferência na comunicação! Sem contato com a base por %d s.") % int(BLACKOUT_TIME))
 		"asteroid":
 			var speed := randf_range(6.0, 12.0)
 			var eta := randf_range(28.0, 40.0)
@@ -194,7 +194,7 @@ func _arrive() -> void:
 	active = false
 	event = ""
 	GameState.heat_extra_rate = 0.0
-	GameState.notice.emit("Chegada ao destino: %s! Missão cumprida." % route)
+	GameState.notice.emit(tr("Chegada ao destino: %s! Missão cumprida.") % tr(route))
 	Missions.complete("viajar")
 	changed.emit()
 
@@ -213,29 +213,29 @@ func _tick_asteroid(delta: float) -> void:
 	var eta: float = asteroid["eta"]
 	if not _seen_asteroid and eta <= SEE_ASTEROID_AT:
 		_seen_asteroid = true
-		GameState.notice.emit("ALERTA: objeto se aproximando! Impacto em ~%d s. Faça a manobra na cadeira de comando!" % int(ceil(eta)))
+		GameState.notice.emit(tr("ALERTA: objeto se aproximando! Impacto em ~%d s. Faça a manobra na cadeira de comando!") % int(ceil(eta)))
 	if eta <= 0.0:
 		if bool(asteroid["maneuvered"]) or not bool(asteroid["will_hit"]):
-			GameState.notice.emit("O objeto passou sem atingir a nave.")
+			GameState.notice.emit(tr("O objeto passou sem atingir a nave."))
 			event = ""
 			asteroid = {}
 			base_alert = ""
 		else:
-			_fail("A nave colidiu com um asteroide.")
+			_fail(tr("A nave colidiu com um asteroide."))
 
 
 ## Manobra evasiva (astronauta). Devolve a mensagem para mostrar.
 func maneuver() -> String:
 	if not maneuver_available():
-		return "Nenhum perigo para desviar agora."
+		return tr("Nenhum perigo para desviar agora.")
 	if fuel < MANEUVER_FUEL:
-		return "Combustível insuficiente para a manobra."
+		return tr("Combustível insuficiente para a manobra.")
 	fuel -= MANEUVER_FUEL
 	energy = maxf(0.0, energy - MANEUVER_ENERGY)
 	time_left -= MANEUVER_TIME
 	asteroid["maneuvered"] = true
 	changed.emit()
-	return "Manobra evasiva feita! Combustível -%d, energia -%d, tempo -%d s." % [int(MANEUVER_FUEL), int(MANEUVER_ENERGY), int(MANEUVER_TIME)]
+	return tr("Manobra evasiva feita! Combustível -%d, energia -%d, tempo -%d s.") % [int(MANEUVER_FUEL), int(MANEUVER_ENERGY), int(MANEUVER_TIME)]
 
 
 ## Tres tempos de impacto possiveis (um e o certo) para o minigame de calculo da base.
@@ -266,7 +266,7 @@ func _start_reactor() -> void:
 		_rotate(reactor["state"], 0)
 	GameState.heat = minf(95.0, GameState.heat + REACTOR_HEAT_JUMP)
 	_apply_reactor_rate()
-	GameState.notice.emit("ALERTA: falha térmica no reator! Ajuste as válvulas no painel do núcleo (a base tem os alvos).")
+	GameState.notice.emit(tr("ALERTA: falha térmica no reator! Ajuste as válvulas no painel do núcleo (a base tem os alvos)."))
 
 
 ## Girar a valvula i tambem gira as vizinhas (estilo "Lights Out"), em passos N->L->S->O.
@@ -328,12 +328,12 @@ func _reactor_stable() -> void:
 	var moves: int = reactor["moves"]
 	if t <= REACTOR_QUICK_TIME and moves <= REACTOR_QUICK_MOVES:
 		energy = minf(100.0, energy + 20.0)
-		GameState.notice.emit("Reator estabilizado rápido! Potência +20.")
+		GameState.notice.emit(tr("Reator estabilizado rápido! Potência +20."))
 	elif t <= REACTOR_DEADLINE:
 		energy = minf(100.0, energy + 8.0)
-		GameState.notice.emit("Reator estabilizado dentro do prazo. Potência +8.")
+		GameState.notice.emit(tr("Reator estabilizado dentro do prazo. Potência +8."))
 	else:
-		GameState.notice.emit("Reator estabilizado, mas fora do prazo: sem bônus.")
+		GameState.notice.emit(tr("Reator estabilizado, mas fora do prazo: sem bônus."))
 	event = ""
 	reactor = {}
 	GameState.heat_extra_rate = 0.0
@@ -346,7 +346,7 @@ func _reactor_shutdown() -> void:
 	reactor = {}
 	GameState.heat_extra_rate = 0.0
 	GameState.heat = 55.0
-	GameState.notice.emit("DESLIGAMENTO DO REATOR! Perda grande de potência.")
+	GameState.notice.emit(tr("DESLIGAMENTO DO REATOR! Perda grande de potência."))
 	_trigger("comm")   # o desligamento ativa direto a interferencia na comunicacao
 
 
@@ -355,7 +355,7 @@ func valve_state_text() -> String:
 		return ""
 	var parts: Array[String] = []
 	for i in 5:
-		parts.append("V%d:%s" % [i + 1, POS_NAMES[int(reactor["state"][i])]])
+		parts.append("V%d:%s" % [i + 1, tr(POS_NAMES[int(reactor["state"][i])])])
 	return " ".join(parts)
 
 
@@ -369,54 +369,54 @@ func _clock(seconds: float) -> String:
 func map_text() -> Array:
 	var n := clampi(int(progress / 5.0), 0, 20)
 	var bar := "[" + "=".repeat(n) + ">" + ".".repeat(20 - n) + "]"
-	var lines: Array = ["Rota: %s   %s %d%%" % [route, bar, int(progress)]]
+	var lines: Array = [tr("Rota: %s   %s %d%%") % [tr(route), bar, int(progress)]]
 	if asteroid_visible():
-		lines.append("!! OBJETO À FRENTE !! Impacto em ~%d s." % int(ceil(float(asteroid["eta"]))))
+		lines.append(tr("!! OBJETO À FRENTE !! Impacto em ~%d s.") % int(ceil(float(asteroid["eta"]))))
 	else:
-		lines.append("Espaço livre à vista. (Só a base prevê perigos distantes.)")
+		lines.append(tr("Espaço livre à vista. (Só a base prevê perigos distantes.)"))
 	if base_alert != "":
-		lines.append("Último alerta da base: " + KIND_NAMES.get(base_alert, base_alert))
+		lines.append(tr("Último alerta da base: ") + tr(KIND_NAMES.get(base_alert, base_alert)))
 	return lines
 
 
 ## Monitor da nave (visao da base).
 func monitor_text() -> String:
-	var lines: Array[String] = ["MONITOR DA NAVE", ""]
-	lines.append("Rota: %s   Progresso: %d%%   Tempo restante: %s" % [route, int(progress), _clock(time_left)])
-	lines.append("Energia: %d%%   Combustível: %d%%   Massa: %d" % [int(energy), int(fuel), int(mass)])
+	var lines: Array[String] = [tr("MONITOR DA NAVE"), ""]
+	lines.append(tr("Rota: %s   Progresso: %d%%   Tempo restante: %s") % [tr(route), int(progress), _clock(time_left)])
+	lines.append(tr("Energia: %d%%   Combustível: %d%%   Massa: %d") % [int(energy), int(fuel), int(mass)])
 	if event != "":
 		lines.append("")
-		lines.append("EM ANDAMENTO: " + KIND_NAMES[event])
+		lines.append(tr("EM ANDAMENTO: ") + tr(KIND_NAMES[event]))
 	lines.append("")
-	lines.append("F / Esc / M: fechar")
+	lines.append(tr("F / Esc / M: fechar"))
 	return "\n".join(lines)
 
 
 ## Previsao da base: so a Terra sabe o que o proximo sorteio reserva e os dados dos eventos.
 func forecast_text() -> String:
-	var lines: Array[String] = ["PREVISÃO DE PERIGOS", ""]
-	lines.append("Próximo sorteio de eventos em %d s." % int(ceil(next_in)))
+	var lines: Array[String] = [tr("PREVISÃO DE PERIGOS"), ""]
+	lines.append(tr("Próximo sorteio de eventos em %d s.") % int(ceil(next_in)))
 	if next_event != "":
-		lines.append("PREVISTO: " + KIND_NAMES[next_event])
+		lines.append(tr("PREVISTO: ") + tr(KIND_NAMES[next_event]))
 	else:
-		lines.append("Previsto: nada de perigoso no próximo intervalo.")
+		lines.append(tr("Previsto: nada de perigoso no próximo intervalo."))
 	if event == "asteroid":
 		lines.append("")
-		lines.append("EM ANDAMENTO: asteroide  |  velocidade %.1f km/s  |  distância %d km" % [float(asteroid["speed"]), int(float(asteroid["speed"]) * float(asteroid["eta"]))])
-		lines.append("(tempo de impacto = distância ÷ velocidade)")
+		lines.append(tr("EM ANDAMENTO: asteroide  |  velocidade %.1f km/s  |  distância %d km") % [float(asteroid["speed"]), int(float(asteroid["speed"]) * float(asteroid["eta"]))])
+		lines.append(tr("(tempo de impacto = distância ÷ velocidade)"))
 	elif event == "reactor":
 		lines.append("")
-		lines.append("EM ANDAMENTO: reator. Alvos das válvulas (N, L, S, O):")
+		lines.append(tr("EM ANDAMENTO: reator. Alvos das válvulas (N, L, S, O):"))
 		var parts: Array[String] = []
 		for i in 5:
 			var t: int = reactor["targets"][i]
-			var s := "V%d: %s" % [i + 1, POS_NAMES[t]]
+			var s := "V%d: %s" % [i + 1, tr(POS_NAMES[t])]
 			if bool(reactor["two"][i]):
-				s += " ou " + POS_NAMES[(t + 2) % 4]
+				s += tr(" ou ") + tr(POS_NAMES[(t + 2) % 4])
 			parts.append(s)
 		lines.append("   ".join(parts))
 	lines.append("")
-	lines.append("F / Esc / M: fechar")
+	lines.append(tr("F / Esc / M: fechar"))
 	return "\n".join(lines)
 
 
@@ -424,14 +424,14 @@ func forecast_text() -> String:
 func send_alert() -> Array:
 	var kind := event if event != "" else next_event
 	if kind == "":
-		return ["Nada de perigoso a avisar por enquanto."]
+		return [tr("Nada de perigoso a avisar por enquanto.")]
 	base_alert = kind
-	var msg := "Alerta da base: %s." % KIND_NAMES[kind]
+	var msg := tr("Alerta da base: %s.") % tr(KIND_NAMES[kind])
 	if kind == "asteroid" and event == "asteroid":
 		var est: int = asteroid["estimate"]
-		msg += " Impacto estimado em %s s. Façam a manobra evasiva!" % (str(est) if est >= 0 else "?")
+		msg += tr(" Impacto estimado em %s s. Façam a manobra evasiva!") % (str(est) if est >= 0 else "?")
 	elif kind == "reactor" and event == "reactor":
-		msg += " Os alvos das válvulas estão com a base."
+		msg += tr(" Os alvos das válvulas estão com a base.")
 	GameState.notice.emit(msg)
 	changed.emit()
-	return ["Alerta enviado à nave.", msg]
+	return [tr("Alerta enviado à nave."), msg]

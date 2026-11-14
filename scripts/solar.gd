@@ -79,39 +79,39 @@ func _process(delta: float) -> void:
 
 ## Texto do terminal solar (a UI chama de novo varias vezes por segundo: "tempo real").
 func terminal_text() -> String:
-	var lines: Array[String] = ["TERMINAL SOLAR - CME", ""]
-	lines.append("Fluxo de raios-X:      %.1f" % live_flux())
-	lines.append("Ângulo da trajetória:  %+.0f graus  (0 = direto na rota da nave)" % live_angle())
+	var lines: Array[String] = [tr("TERMINAL SOLAR - CME"), ""]
+	lines.append(tr("Fluxo de raios-X:      %.1f") % live_flux())
+	lines.append(tr("Ângulo da trajetória:  %+.0f graus  (0 = direto na rota da nave)") % live_angle())
 	lines.append("")
-	lines.append("MANUAL DE LIMITE SEGURO")
-	lines.append("A tempestade atinge a nave se o fluxo for MAIOR OU IGUAL a %.1f" % HIT_FLUX)
-	lines.append("E o ângulo estiver entre -%d e +%d graus." % [int(HIT_ANGLE), int(HIT_ANGLE)])
-	lines.append("Fora disso, a ejeção passa longe ou é fraca demais.")
+	lines.append(tr("MANUAL DE LIMITE SEGURO"))
+	lines.append(tr("A tempestade atinge a nave se o fluxo for MAIOR OU IGUAL a %.1f") % HIT_FLUX)
+	lines.append(tr("E o ângulo estiver entre -%d e +%d graus.") % [int(HIT_ANGLE), int(HIT_ANGLE)])
+	lines.append(tr("Fora disso, a ejeção passa longe ou é fraca demais."))
 	lines.append("")
-	lines.append("F / Esc / M: fechar e decidir")
+	lines.append(tr("F / Esc / M: fechar e decidir"))
 	return "\n".join(lines)
 
 
 ## Decisao da base. Devolve as linhas para mostrar ao jogador.
 func decide(send_alert: bool) -> Array:
 	if decided:
-		return ["A decisão já foi tomada."]
+		return [tr("A decisão já foi tomada.")]
 	decided = true
 	Missions.complete("solar")
 	if send_alert:
 		alert_sent = true
 		countdown = CME_COUNTDOWN
-		GameState.notice.emit("ALARME SOLAR! Ative os escudos no controle de energia (sala do reator)!")
+		GameState.notice.emit(tr("ALARME SOLAR! Ative os escudos no controle de energia (sala do reator)!"))
 		changed.emit()
-		return ["Alerta de abrigo enviado à nave.", "A nave tem %d s para ativar os escudos." % int(CME_COUNTDOWN)]
+		return [tr("Alerta de abrigo enviado à nave."), tr("A nave tem %d s para ativar os escudos.") % int(CME_COUNTDOWN)]
 	_resolve()
-	return ["Você ignorou o evento.", last_result]
+	return [tr("Você ignorou o evento."), last_result]
 
 
 func activate_shield() -> void:
 	if alert_sent and not resolved:
 		shield_on = true
-		GameState.notice.emit("Escudos ativados! Energia redirecionada.")
+		GameState.notice.emit(tr("Escudos ativados! Energia redirecionada."))
 		changed.emit()
 
 
@@ -126,24 +126,24 @@ func _resolve() -> void:
 	resolved = true
 	if real and alert_sent and shield_on:
 		_energy(-15.0)
-		last_result = "A nave atravessou a tempestade sem danos. Gastou energia moderada nos escudos."
+		last_result = tr("A nave atravessou a tempestade sem danos. Gastou energia moderada nos escudos.")
 	elif real and alert_sent:
 		GameState.apply_effects({"health": -15.0})
 		inverted_left = INVERT_TIME
-		last_result = "Os escudos não foram ativados a tempo! A radiação atingiu a nave: controles invertidos e vida -15."
+		last_result = tr("Os escudos não foram ativados a tempo! A radiação atingiu a nave: controles invertidos e vida -15.")
 	elif real:
 		GameState.apply_effects({"health": -20.0})
 		inverted_left = INVERT_TIME
-		last_result = "A base não avisou! A radiação atingiu a nave: painéis em interferência (controles invertidos) e vida -20."
+		last_result = tr("A base não avisou! A radiação atingiu a nave: painéis em interferência (controles invertidos) e vida -20.")
 	elif alert_sent and shield_on:
 		_energy(-30.0)
 		if Voyage.active:
 			Voyage.time_left -= 30.0
-		last_result = "Alarme falso: os escudos foram ligados à toa. Queda brusca de energia e tempo perdido."
+		last_result = tr("Alarme falso: os escudos foram ligados à toa. Queda brusca de energia e tempo perdido.")
 	elif alert_sent:
-		last_result = "Era alarme falso e os escudos não foram ligados. Nada aconteceu."
+		last_result = tr("Era alarme falso e os escudos não foram ligados. Nada aconteceu.")
 	else:
-		last_result = "Falso alarme descartado corretamente. Nada aconteceu."
+		last_result = tr("Falso alarme descartado corretamente. Nada aconteceu.")
 	Missions.complete("solar")     # (ja concluida se a base decidiu; ignora se fora de ordem)
 	Missions.complete("escudos")
 	GameState.notice.emit(last_result)

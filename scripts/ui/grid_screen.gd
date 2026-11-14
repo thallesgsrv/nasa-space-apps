@@ -185,7 +185,7 @@ func refresh() -> void:
 		if sel_id != "" and not sel_img:
 			_prev_icon.color = ICON_COLORS.get(sel_id, Color("6a7ad0"))
 			_prev_label.text = GameState.item_short(sel_id)
-		_prev_name.text = GameState.item_name(sel_id) if sel_id != "" else "Vazio"
+		_prev_name.text = GameState.item_name(sel_id) if sel_id != "" else tr("Vazio")
 	var r := _to_screen(slots[selected]).grow(6.0)
 	_cursor.position = r.position
 	_cursor.size = r.size
@@ -229,9 +229,11 @@ func _input(event: InputEvent) -> void:
 	if move != Vector2i.ZERO:
 		get_viewport().set_input_as_handled()
 		_move(move)
+		Audio.sfx("select", 1.0, 0.3)
 		return
 	if event.is_action_pressed("interact") and not event.is_echo():
 		get_viewport().set_input_as_handled()
+		Audio.sfx("select", 1.35, 0.5)
 		picked.emit(selected)
 		return
 	for a in close_actions:

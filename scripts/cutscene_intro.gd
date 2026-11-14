@@ -38,6 +38,7 @@ func _ready() -> void:
 	UI.show_hud(false)
 	GameState.running = false
 	_build()
+	Audio.play_room("laboratorio")
 	_run()
 
 
@@ -75,11 +76,11 @@ func _build() -> void:
 	ship.position = Vector2(30, 70)
 	ship.size = Vector2(380, 170)
 	_comm.add_child(ship)
-	_comm_label = _label("NAVE  -  SINAL", 24)
+	_comm_label = _label(tr("NAVE  -  SINAL"), 24)
 	_comm_label.position = Vector2(34, 28)
 	_comm.add_child(_comm_label)
 
-	var hint := _label("Esc: pular cutscene", 16)
+	var hint := _label(tr("Esc: pular cutscene"), 16)
 	hint.add_theme_color_override("font_color", Color("dfe9ff"))
 	hint.add_theme_color_override("font_outline_color", INK)
 	hint.add_theme_constant_override("outline_size", 6)
@@ -95,7 +96,7 @@ func _run() -> void:
 			break
 		await _speak(line[0], line[1])
 	await UI.fade_to(1.0, 0.6)
-	await UI.play_video(VIDEO_PATH)
+	await UI.play_video(VIDEO_PATH, false)
 	GameState.running = false
 	get_tree().change_scene_to_file(GAME_SCENE)
 
@@ -104,7 +105,7 @@ func _speak(who: String, text: String) -> void:
 	var ship_talks := who == "NAVE"
 	_comm.modulate.a = 1.0 if ship_talks else 0.55
 	_set_bob(not ship_talks)
-	await UI.say("%s: %s" % [who, text])
+	await UI.say("%s: %s" % [tr(who), tr(text)])
 	_set_bob(false)
 
 

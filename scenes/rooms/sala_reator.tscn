@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -54,12 +54,15 @@ size = Vector2(270, 150)
 size = Vector2(160, 35)
 
 [sub_resource type="RectangleShape2D" id="s16"]
-size = Vector2(230, 190)
+size = Vector2(50, 56)
 
 [sub_resource type="RectangleShape2D" id="s17"]
-size = Vector2(166, 150)
+size = Vector2(230, 190)
 
 [sub_resource type="RectangleShape2D" id="s18"]
+size = Vector2(166, 150)
+
+[sub_resource type="RectangleShape2D" id="s19"]
 size = Vector2(360, 338)
 
 [node name="SalaReator" type="Node2D"]
@@ -144,6 +147,16 @@ place_name = "Cafeteria"
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria"]
 shape = SubResource("s15")
 
+[node name="Porta_camara_propulsao" type="Area2D" parent="Portas"]
+position = Vector2(125, 750)
+script = ExtResource("2_door")
+target_room = "res://scenes/rooms/camara_propulsao.tscn"
+target_spawn = "from_sala_reator"
+place_name = "Câmara de propulsão"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_camara_propulsao"]
+shape = SubResource("s16")
+
 [node name="Interativos" type="Node2D" parent="."]
 
 [node name="PainelNucleo" type="Area2D" parent="Interativos"]
@@ -153,7 +166,7 @@ action = "nucleo"
 display_name = "Núcleo"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelNucleo"]
-shape = SubResource("s16")
+shape = SubResource("s17")
 
 [node name="KitMedico" type="Area2D" parent="Interativos"]
 position = Vector2(1373, 715)
@@ -162,7 +175,7 @@ action = "botiquim"
 display_name = "Kit médico"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/KitMedico"]
-shape = SubResource("s17")
+shape = SubResource("s18")
 
 [node name="PainelEscudos" type="Area2D" parent="Interativos"]
 position = Vector2(240, 549)
@@ -171,9 +184,12 @@ action = "escudos"
 display_name = "Escudos"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelEscudos"]
-shape = SubResource("s18")
+shape = SubResource("s19")
 
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="from_cafeteria" type="Marker2D" parent="Spawns"]
 position = Vector2(770, 865)
+
+[node name="from_camara_propulsao" type="Marker2D" parent="Spawns"]
+position = Vector2(195, 750)

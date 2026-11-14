@@ -64,6 +64,7 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 		return
 	_room = scene.instantiate()
 	world.add_child(_room)
+	Audio.play_room(_room.room_id())   # ambiente da sala (fade)
 	world.move_child(_room, 0) # sala atras, jogador na frente
 	for door in _room.find_children("*", "Area2D", true, false):
 		if door.has_signal("used"):
@@ -73,7 +74,7 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 	player.velocity = Vector2.ZERO
 	var place = _room.get("place_name")
 	if place != null and String(place) != "":
-		UI.toast(String(place), 2.2)
+		UI.toast(tr(String(place)), 2.2)
 
 
 func _fade_to(alpha: float) -> void:
@@ -101,13 +102,13 @@ func toggle_world() -> void:
 		_swap_player(scientist)
 		_load_room(EARTH_ROOM, EARTH_SPAWN)
 		_on_earth = true
-		UI.toast("Terra: você controla o cientista. Aperte 1 para voltar à estação.", 4.0)
+		UI.toast(tr("Terra: você controla o cientista. Aperte 1 para voltar à estação."), 4.0)
 	else:
 		_swap_player(astronaut)
 		_load_room(_saved_room, "")
 		player.global_position = _saved_pos
 		_on_earth = false
-		UI.toast("Estação: você controla o astronauta.", 3.0)
+		UI.toast(tr("Estação: você controla o astronauta."), 3.0)
 	await _fade_to(0.0)
 	player.set_physics_process(true)
 	_busy = false
@@ -125,11 +126,13 @@ func _swap_player(next: CharacterBody2D) -> void:
 # O nucleo ficou 12 s em 100%: a nave explode.
 func _on_exploded() -> void:
 	player.locked = true
+	Audio.stop_music(0.2)
+	Audio.sfx("explosao")
 	UI.lock()
 	await UI.flash_white()
 	UI.unlock()
-	await UI.say(["BOOM!", "O núcleo do reator superaqueceu e a nave explodiu.", "Fim de jogo."])
-	var i := await UI.choose(["Recomeçar", "Menu inicial"], "Game over")
+	await UI.say([tr("BOOM!"), tr("O núcleo do reator superaqueceu e a nave explodiu."), tr("Fim de jogo.")])
+	var i := await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
 	GameState.reset()
 	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")
 
@@ -140,7 +143,7 @@ func _on_failed(reason: String) -> void:
 	UI.lock()
 	await UI.fade_to(1.0, 0.8)
 	UI.unlock()
-	await UI.say(["MISSÃO FALHOU", reason, "Fim de jogo."])
-	var i := await UI.choose(["Recomeçar", "Menu inicial"], "Game over")
+	await UI.say([tr("MISSÃO FALHOU"), reason, tr("Fim de jogo.")])
+	var i := await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
 	GameState.reset()
 	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")

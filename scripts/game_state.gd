@@ -111,7 +111,7 @@ func _process(delta: float) -> void:
 	if heat >= 100.0:
 		if meltdown_left < 0.0:
 			meltdown_left = MELTDOWN_TIME
-			notice.emit("NÚCLEO CRÍTICO! Resfrie agora: a nave explode em %d segundos!" % int(MELTDOWN_TIME))
+			notice.emit(tr("NÚCLEO CRÍTICO! Resfrie agora: a nave explode em %d segundos!") % int(MELTDOWN_TIME))
 		else:
 			meltdown_left -= delta
 			if meltdown_left <= 0.0:
@@ -124,7 +124,7 @@ func _process(delta: float) -> void:
 		meltdown_left = -1.0
 	if heat >= HEAT_WARNING and not _heat_warned:
 		_heat_warned = true
-		notice.emit("O núcleo do reator está esquentando!")
+		notice.emit(tr("O núcleo do reator está esquentando!"))
 	elif heat < HEAT_WARNING - 10.0:
 		_heat_warned = false
 	changed.emit()
@@ -157,7 +157,7 @@ func heal(amount: float) -> void:
 
 # --- inventario ---
 func item_name(id: String) -> String:
-	return ITEMS[id]["name"] if ITEMS.has(id) else id
+	return tr(ITEMS[id]["name"]) if ITEMS.has(id) else id
 
 
 func item_short(id: String) -> String:
@@ -259,7 +259,7 @@ func _capsule_arrived() -> void:
 	capsule_ready = capsule_item
 	capsule_item = ""
 	capsule_left = 0.0
-	notice.emit("Chegou da Terra: %s. Retire na cápsula (armazém)." % item_name(capsule_ready))
+	notice.emit(tr("Chegou da Terra: %s. Retire na cápsula (armazém).") % item_name(capsule_ready))
 	inventory_changed.emit()
 
 

@@ -21,7 +21,7 @@ const DEFS := {
 			{"id": "aquecer", "side": "ESPAÇO", "text": "Aquecer o pacote na máquina de aquecimento (armazém, containers azuis à direita)"},
 			{"id": "centrifugar", "side": "ESPAÇO", "text": "Esvaziar e centrifugar (sala de controle, máquinas do canto esquerdo)"},
 			{"id": "enviar", "side": "ESPAÇO", "text": "Enviar a amostra à base pela cápsula (armazém, cilindro do canto direito)"},
-			{"id": "veredito", "side": "TERRA", "text": "Base: analisar a amostra, conferir a coloração e dar o veredito (painel do laboratório; tecla 1)"},
+			{"id": "veredito", "side": "TERRA", "text": "Base: analisar o fungo na mesa do microscópio (placa de Petri) e dar o veredito no painel (laboratório; tecla 1)"},
 			{"id": "retirar", "side": "ESPAÇO", "text": "Retirar a amostra na cápsula (armazém) e ler o resultado da base"},
 		],
 	},
@@ -86,7 +86,7 @@ func _process(delta: float) -> void:
 		if heating_left <= 0.0:
 			heating_left = 0.0
 			heater_state = "ready"
-			GameState.notice.emit("Os pacotes terminaram de aquecer!")
+			GameState.notice.emit(tr("Os pacotes terminaram de aquecer!"))
 			changed.emit()
 
 
@@ -98,7 +98,7 @@ func start(id: String) -> void:
 	step = 0
 	if id == "cme":
 		Solar.generate()
-	GameState.notice.emit("Nova missão: %s" % DEFS[id]["title"])
+	GameState.notice.emit(tr("Nova missão: %s") % tr(DEFS[id]["title"]))
 	changed.emit()
 
 
@@ -120,7 +120,7 @@ func complete(id: String) -> void:
 	step += 1
 	if step >= steps.size():
 		finished.append(active)
-		GameState.notice.emit("Missão concluída: %s" % DEFS[active]["title"])
+		GameState.notice.emit(tr("Missão concluída: %s") % tr(DEFS[active]["title"]))
 		active = ""
 		step = 0
 		for next_id in ORDER:           # a proxima missao comeca sozinha
@@ -128,7 +128,7 @@ func complete(id: String) -> void:
 				start(next_id)
 				break
 	else:
-		GameState.notice.emit("Missão atualizada: %s" % steps[step]["text"])
+		GameState.notice.emit(tr("Missão atualizada: %s") % tr(steps[step]["text"]))
 	changed.emit()
 
 
@@ -144,6 +144,8 @@ func current_target() -> Dictionary:
 		"enviar", "retirar":
 			return {"room": "armazem", "action": "capsula"}
 		"veredito":
+			if not analyzed:
+				return {"room": "laboratorio", "action": "mesa_analise"}
 			return {"room": "laboratorio", "action": "painel_base"}
 		"rota":
 			return {"room": "sala_controle", "action": "assento"}
@@ -159,10 +161,19 @@ func tracker_text() -> String:
 	if active == "":
 		return ""
 	var s: Dictionary = DEFS[active]["steps"][step]
-	return "[%s] %s" % [s["side"], s["text"]]
+	return "[%s] %s" % [tr(s["side"]), tr(s["text"])]
 
 
 # ============================ missao 1: amostra e veredito ============================
+## Nomes das coloracoes (traduzidos) para mostrar ao jogador.
+func color_list(ok: bool) -> String:
+	return ", ".join((COLORS_OK if ok else COLORS_FAIL).map(func(c): return tr(c)))
+
+
+func color_name() -> String:
+	return tr(sample_color)
+
+
 func analyze_sample() -> String:
 	sample_ok = randf() < SUCCESS_CHANCE
 	sample_color = (COLORS_OK if sample_ok else COLORS_FAIL).pick_random()
@@ -195,10 +206,10 @@ func verdict(says_success: bool) -> Array:
 	complete("veredito")
 	GameState.release_capsule()   # a amostra volta para a capsula depois do OK da base
 	if says_success:
-		result_lines = ["A base analisou a amostra.", "Resultado: SUCESSO.", "Os efeitos aparecerão na próxima missão."]
+		result_lines = [tr("A base analisou a amostra."), tr("Resultado: SUCESSO."), tr("Os efeitos aparecerão na próxima missão.")]
 	else:
-		result_lines = ["A base analisou a amostra.", "Resultado: FALHA.", "A pesquisa gastou mais energia e ocupou mais dados armazenados."]
-	return ["Veredito registrado: %s." % ("SUCESSO" if says_success else "FALHA"), "A amostra volta para a nave pela cápsula; o astronauta lê o resultado ao retirá-la."]
+		result_lines = [tr("A base analisou a amostra."), tr("Resultado: FALHA."), tr("A pesquisa gastou mais energia e ocupou mais dados armazenados.")]
+	return [tr("Veredito registrado: %s.") % (tr("SUCESSO") if says_success else tr("FALHA")), tr("A amostra volta para a nave pela cápsula; o astronauta lê o resultado ao retirá-la.")]
 
 
 ## Mensagem da base (sucesso/falha) mostrada ao retirar a amostra; conclui a ultima etapa.
@@ -214,20 +225,20 @@ func take_result() -> Array:
 func eat_sample() -> Array:
 	if sample_ok:
 		GameState.apply_effects({"food": 20.0})
-		return ["Você comeu a amostra.", "Estava boa! Comida +20."]
+		return [tr("Você comeu a amostra."), tr("Estava boa! Comida +20.")]
 	var dmg := GameState.health * 0.5
 	GameState.apply_effects({"health": -dmg})
-	return ["Você comeu a amostra.", "Estava estragada! Você passou muito mal e perdeu %d de vida (50%% da vida atual)." % int(round(dmg))]
+	return [tr("Você comeu a amostra."), tr("Estava estragada! Você passou muito mal e perdeu %d de vida (50%% da vida atual).") % int(round(dmg))]
 
 
 ## Efeitos visiveis para a proxima missao (o risco escondido nao aparece).
 func effects_lines() -> Array[String]:
 	var names := {
-		"nave_leve": "Massa da nave menor",
-		"menos_energia": "Menor consumo de energia",
-		"mais_tempo": "Mais tempo limite na missão",
-		"energia_extra": "Maior consumo de energia (pesquisa que falhou)",
-		"dados_extra": "Mais dados armazenados (pesquisa que falhou)",
+		"nave_leve": tr("Massa da nave menor"),
+		"menos_energia": tr("Menor consumo de energia"),
+		"mais_tempo": tr("Mais tempo limite na missão"),
+		"energia_extra": tr("Maior consumo de energia (pesquisa que falhou)"),
+		"dados_extra": tr("Mais dados armazenados (pesquisa que falhou)"),
 	}
 	var out: Array[String] = []
 	for k in flags:
@@ -238,25 +249,25 @@ func effects_lines() -> Array[String]:
 
 # ============================ texto do menu de missoes ============================
 func summary_text() -> String:
-	var lines: Array[String] = ["MISSÕES", ""]
+	var lines: Array[String] = [tr("MISSÕES"), ""]
 	if active != "":
-		lines.append("Missão atual: " + DEFS[active]["title"])
+		lines.append(tr("Missão atual: ") + tr(DEFS[active]["title"]))
 		var steps: Array = DEFS[active]["steps"]
 		for i in steps.size():
 			var s: Dictionary = steps[i]
 			var mark := "[x]" if i < step else ("[>]" if i == step else "[ ]")
-			lines.append(" %s %s (%s)" % [mark, s["text"], s["side"]])
+			lines.append(" %s %s (%s)" % [mark, tr(s["text"]), tr(s["side"])])
 	else:
-		lines.append("Nenhuma missão ativa.")
+		lines.append(tr("Nenhuma missão ativa."))
 	if not finished.is_empty():
 		lines.append("")
-		lines.append("Concluídas:")
+		lines.append(tr("Concluídas:"))
 		for id in finished:
-			lines.append(" - " + DEFS[id]["title"])
+			lines.append(" - " + tr(DEFS[id]["title"]))
 		var fx := effects_lines()
-		lines.append("Efeitos para a próxima missão: " + (", ".join(fx) if not fx.is_empty() else "nenhum"))
+		lines.append(tr("Efeitos para a próxima missão: ") + (", ".join(fx) if not fx.is_empty() else "nenhum"))
 	lines.append("")
-	lines.append("Eventos possíveis (em desenvolvimento): " + ", ".join(EVENTS))
+	lines.append(tr("Eventos possíveis (em desenvolvimento): ") + ", ".join(EVENTS.map(func(e): return tr(e))))
 	lines.append("")
-	lines.append("F / Esc / M: fechar")
+	lines.append(tr("F / Esc / M: fechar"))
 	return "\n".join(lines)

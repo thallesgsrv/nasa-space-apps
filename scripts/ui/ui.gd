@@ -11,6 +11,7 @@ const TEX_PANEL := preload("res://assets/ui/panel_menu.png")
 const TEX_BAR := preload("res://assets/ui/panel_bar.png")
 const TEX_TOAST := preload("res://assets/ui/panel_toast.png")
 const GRID := preload("res://scripts/ui/grid_screen.gd")
+const PETRI := preload("res://scripts/ui/petri_game.gd")
 
 const INK := Color("1b2a5c")
 const VIEW := Vector2(1536, 1024)
@@ -31,7 +32,8 @@ var busy: bool:
 var _hud: Control
 var _bars: Dictionary = {}       # nome -> ColorRect (preenchimento)
 var _hp_fill: ColorRect
-const BAR_W := 190.0
+var _static_labels: Array[Label] = []   # textos fixos que mudam quando o idioma muda
+const BAR_W := 160.0
 
 # dialogo
 var _dialog: Control
@@ -133,6 +135,7 @@ func _ready() -> void:
 	Missions.changed.connect(_refresh_tracker)
 	Voyage.changed.connect(_refresh_voyage)
 	Solar.changed.connect(_refresh_solar)
+	Lang.changed.connect(retranslate)
 	show_hud(false)
 	_refresh_hud()
 
@@ -144,6 +147,15 @@ func lock() -> void:
 
 func unlock() -> void:
 	_locks = maxi(0, _locks - 1)
+
+
+## Idioma mudou: atualiza os textos fixos da interface.
+func retranslate() -> void:
+	for l in _static_labels:
+		l.text = tr(String(l.get_meta("k")))
+	_refresh_hud()
+	_refresh_voyage()
+	_refresh_tracker()
 
 
 func show_hud(v: bool) -> void:
@@ -185,11 +197,12 @@ func say(lines) -> void:
 ## Toca um video (.ogv) em tela cheia por cima do jogo. Esc / Enter / Espaco / F pulam.
 ## Escurece antes e DEIXA A TELA PRETA no fim: quem chamou decide quando clarear (UI.fade_to(0, t)).
 ## Se o arquivo nao existir, nao faz nada.
-func play_video(path: String) -> void:
+func play_video(path: String, resume_music: bool = true) -> void:
 	if not ResourceLoader.exists(path):
 		push_warning("Video nao encontrado: %s (precisa ser .ogv)." % path)
 		return
 	lock()
+	Audio.pause_music()
 	await fade_to(1.0, 0.5)
 	var black := ColorRect.new()
 	black.color = Color.BLACK
@@ -223,10 +236,21 @@ func play_video(path: String) -> void:
 		await get_tree().process_frame
 	vp.stop()
 	await fade_to(1.0, 0.4)
+	if resume_music:
+		Audio.resume_music()
 	_video_active = false
 	vp.queue_free()
 	black.queue_free()
 	unlock()
+
+
+## Abre o minigame da placa de Petri; espere g.closed e depois g.queue_free().
+func open_petri() -> Control:
+	var g = PETRI.new()
+	g.configure()
+	add_child(g)
+	move_child(g, _fade.get_index())   # cobre tudo (HUD, objetivo, avisos), so o fade fica por cima
+	return g
 
 
 ## Abre a tela de grade ("inventory" ou "storage"); feche com queue_free() no fim.
@@ -324,7 +348,9 @@ func _make_bar(pos: Vector2, size: Vector2, text: String, color: Color) -> Color
 	box.position = pos
 	box.size = size
 	_hud.add_child(box)
-	var lab := _label(text, 24)
+	var lab := _label(tr(text), 24)
+	lab.set_meta("k", text)
+	_static_labels.append(lab)
 	lab.position = Vector2(26, 18)
 	box.add_child(lab)
 	var bg := ColorRect.new()
@@ -345,7 +371,7 @@ func _refresh_hud() -> void:
 	var critical := GameState.meltdown_left >= 0.0 and _hud.visible
 	_alarm.visible = critical
 	if critical:
-		_alarm.text = "NÚCLEO CRÍTICO! EXPLOSÃO EM %d s" % ceili(GameState.meltdown_left)
+		_alarm.text = tr("NÚCLEO CRÍTICO! EXPLOSÃO EM %d s") % ceili(GameState.meltdown_left)
 	_set_fill(_bars["food"], GameState.food)
 	_set_fill(_bars["sleep"], GameState.sleep)
 	_set_fill(_bars["thirst"], GameState.thirst)
@@ -479,13 +505,16 @@ func _input(event: InputEvent) -> void:
 		if event.is_action_pressed("move_up", true):
 			_menu_sel = (_menu_sel - 1 + _menu_options.size()) % _menu_options.size()
 			_place_cursor()
+			Audio.sfx("select", 1.0, 0.35)
 			get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("move_down", true):
 			_menu_sel = (_menu_sel + 1) % _menu_options.size()
 			_place_cursor()
+			Audio.sfx("select", 1.0, 0.35)
 			get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("interact") and not event.is_echo():
 			get_viewport().set_input_as_handled()
+			Audio.sfx("select", 1.35, 0.5)
 			_chosen.emit(_menu_sel)
 		elif event.is_action_pressed("ui_cancel"):
 			get_viewport().set_input_as_handled()
@@ -605,7 +634,9 @@ func _build_voyage() -> void:
 	for i in defs.size():
 		var d: Array = defs[i]
 		var y := 74.0 + i * 26.0
-		var lab := _label(d[1], 16)
+		var lab := _label(tr(d[1]), 16)
+		lab.set_meta("k", d[1])
+		_static_labels.append(lab)
 		lab.position = Vector2(24, y)
 		_voyage.add_child(lab)
 		var bg := ColorRect.new()
@@ -626,8 +657,8 @@ func _refresh_voyage() -> void:
 	if not _voyage.visible:
 		return
 	var s := maxi(0, int(ceil(Voyage.time_left)))
-	_voyage_title.text = "VIAGEM: " + Voyage.route
-	_voyage_info.text = "Tempo %02d:%02d%s" % [s / 60, s % 60, "   SEM CONTATO" if not Voyage.comms_ok() else ""]
+	_voyage_title.text = tr("VIAGEM: ") + tr(Voyage.route)
+	_voyage_info.text = tr("Tempo %02d:%02d%s") % [s / 60, s % 60, tr("   SEM CONTATO") if not Voyage.comms_ok() else ""]
 	_voyage_bars["energy"].size.x = 150.0 * clampf(Voyage.energy, 0.0, 100.0) / 100.0
 	_voyage_bars["fuel"].size.x = 150.0 * clampf(Voyage.fuel, 0.0, 100.0) / 100.0
 	_voyage_bars["progress"].size.x = 150.0 * clampf(Voyage.progress, 0.0, 100.0) / 100.0
@@ -681,7 +712,7 @@ func _refresh_solar() -> void:
 	var on: bool = Solar.alert_sent and not Solar.resolved and _hud.visible
 	_solar_alarm.visible = on
 	if on:
-		_solar_alarm.text = "ALARME SOLAR! %s: %d s" % ["ESCUDOS ATIVOS" if Solar.shield_on else "Ative os escudos (sala do reator)", ceili(Solar.countdown)]
+		_solar_alarm.text = tr("ALARME SOLAR! %s: %d s") % [tr("ESCUDOS ATIVOS") if Solar.shield_on else tr("Ative os escudos (sala do reator)"), ceili(Solar.countdown)]
 		_solar_alarm.add_theme_color_override("font_color", Color("1fa84a") if Solar.shield_on else Color("e07a00"))
 
 
