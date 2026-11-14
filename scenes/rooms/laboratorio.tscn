@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene load_steps=30 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -74,8 +74,15 @@ size = Vector2(117, 181)
 [sub_resource type="RectangleShape2D" id="s22"]
 size = Vector2(38, 195)
 
+[sub_resource type="RectangleShape2D" id="s23"]
+size = Vector2(475, 235)
+
+[sub_resource type="RectangleShape2D" id="s24"]
+size = Vector2(400, 290)
+
 [node name="Laboratorio" type="Node2D"]
 script = ExtResource("1_room")
+place_name = "Laboratório (Terra)"
 
 [node name="Fundo" type="Sprite2D" parent="."]
 centered = false
@@ -178,6 +185,24 @@ shape = SubResource("s22")
 [node name="Portas" type="Node2D" parent="."]
 
 [node name="Interativos" type="Node2D" parent="."]
+
+[node name="PainelBase" type="Area2D" parent="Interativos"]
+position = Vector2(767.5, 352.5)
+script = ExtResource("3_inter")
+action = "painel_base"
+display_name = "Painel da base"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelBase"]
+shape = SubResource("s23")
+
+[node name="MesaAnalise" type="Area2D" parent="Interativos"]
+position = Vector2(340, 545)
+script = ExtResource("3_inter")
+action = "mesa_analise"
+display_name = "Mesa de análise"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/MesaAnalise"]
+shape = SubResource("s24")
 
 [node name="Spawns" type="Node2D" parent="."]
 

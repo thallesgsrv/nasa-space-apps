@@ -3,15 +3,17 @@ extends Node
 ## Cada Interativo nas salas tem um "action"; run() executa a acao correspondente.
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
+const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de controle)
+const PLANET_TRANSITION := "res://assets/Viideos/trasiicao.ogv"  # cutscene de troca de planeta
 
 func run(action: String, source: Node, player: Node) -> void:
 	match action:
 		"fridge":
-			await _cafeteria_item(source, "refri", "Geladeira", "Beber agora")
+			await _cafeteria_item(source, "refri", tr("Geladeira"), tr("Beber agora"))
 		"coffee":
-			await _cafeteria_item(source, "cafe", "Máquina de café", "Tomar agora")
-		"croquete":
-			await _cafeteria_item(source, "croquete", "Vitrine de croquetes", "Comer agora")
+			await _cafeteria_item(source, "cafe", tr("Máquina de café"), tr("Tomar agora"))
+		"bolacha":
+			await _cafeteria_item(source, "bolacha", tr("Vitrine de bolachas"), tr("Comer agora"))
 		"bunk":
 			await _bunk()
 		"terminal_saida":
@@ -26,54 +28,94 @@ func run(action: String, source: Node, player: Node) -> void:
 			await _nucleo()
 		"botiquim":
 			await _botiquim()
+		"escudos":
+			await _escudos()
+		"mesa_analise":
+			await _mesa_analise()
 		"propulsor":
-			await UI.say(["Painel do propulsor.", "A escolha do lançador e da órbita é feita no console da sala de controle."])
+			await UI.say([tr("Painel do propulsor."), tr("Todos os sistemas estáveis. (Controle do propulsor em desenvolvimento.)")])
 		"assento":
 			await _assento(source, player)
+		"checkup":
+			await _checkup()
+		"mission_pacotes":
+			await _estante_culturas()
+		"aquecedor":
+			await _aquecedor()
+		"centrifuga":
+			await _centrifuga()
+		"painel_base":
+			await _painel_base()
 		_:
 			push_warning("Acao de interacao desconhecida: " + action)
 
 
 # ============================ tutorial ============================
 func show_tutorial() -> void:
+	var skip := await UI.choose([tr("Ver tutorial"), tr("Pular tutorial")], tr("Tutorial"))
+	if skip != 0:
+		return
 	await UI.say([
-		"Use W A S D (ou as setas) para andar.",
-		"Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar.",
-		"Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus.",
-		"Sente na sala de controle para projetar a missão: objetivo, instrumentos, energia, lançador, órbita e solo.",
-		"Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra).",
-		"Fique de olho nas barras de comida, sono e água lá embaixo!",
+		tr("Use W A S D (ou as setas) para andar."),
+		tr("Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar."),
+		tr("Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus."),
+		tr("Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra)."),
+		tr("Aperte M (ou J) para ver as missões. O objetivo atual aparece no canto da tela por um tempo; depois fica só um \"!\" (clique nele ou aperte V para ver de novo)."),
+		tr("Fique de olho nas barras de comida, sono e água lá embaixo!"),
 	])
 
 
 # ============================ inventario ============================
 func open_inventory() -> void:
+	var g = UI.open_grid("inventory")
+	g.desc_provider = _inventory_text
 	while true:
-		var ids := GameState.unique_ids(GameState.inventory)
-		if ids.is_empty():
-			await UI.say("A mochila está vazia. (%d espaços)" % GameState.INVENTORY_SLOTS)
-			return
-		var opts: Array = []
-		for id in ids:
-			opts.append("%s x%d" % [GameState.item_name(id), GameState.count_of(GameState.inventory, id)])
-		opts.append("Fechar")
-		var i := await UI.choose(opts, "Mochila %d/%d" % [GameState.inventory.size(), GameState.INVENTORY_SLOTS])
-		if i < 0 or i >= ids.size():
-			return
-		var chosen := ids[i]
-		var a := await UI.choose(["Usar", "Voltar"], GameState.item_name(chosen))
+		g.set_items(GameState.inventory)
+		var i: int = await g.picked
+		if i < 0:
+			break
+		if i >= GameState.inventory.size():
+			continue
+		var chosen: String = GameState.inventory[i]
+		var a := await UI.choose([tr("Usar"), tr("Voltar")], GameState.item_name(chosen))
 		if a == 0:
 			await _consume(chosen)
+	g.queue_free()
+
+
+func _inventory_text(_i: int, id: String) -> String:
+	var head := tr("Mochila %d/%d") % [GameState.inventory.size(), GameState.INVENTORY_SLOTS]
+	if id == "":
+		return head + tr("\nEspaço vazio.   Esc: fechar")
+	return tr("%s: %s\n%s   F: usar   Esc: fechar") % [head, GameState.item_name(id), _effects_text(GameState.ITEMS[id]["effects"])]
 
 
 func _consume(id: String) -> void:
+	if id == "amostra":
+		await _comer_amostra()
+		return
+	if GameState.ITEMS[id]["effects"].is_empty():
+		await UI.say(tr("%s não pode ser usado assim.") % GameState.item_name(id))
+		return
 	if GameState.remove_item(id):
 		GameState.use_item(id)
-		await UI.say("Você usou %s. %s" % [GameState.item_name(id), _effects_text(GameState.ITEMS[id]["effects"])])
+		await UI.say(tr("Você usou %s. %s") % [GameState.item_name(id), _effects_text(GameState.ITEMS[id]["effects"])])
+
+
+# Comer a amostra: se estiver estragada (mesmo que a base tenha dito sucesso) tira 50% da vida atual.
+func _comer_amostra() -> void:
+	if Missions.is_step("enviar"):
+		await UI.say(tr("Você precisa enviar esta amostra à base antes. Não dá para comê-la agora."))
+		return
+	if not GameState.remove_item("amostra"):
+		return
+	await UI.say(Missions.eat_sample())
 
 
 func _effects_text(effects: Dictionary) -> String:
-	var names := {"food": "Comida", "thirst": "Água", "sleep": "Sono", "health": "Vida"}
+	if effects.is_empty():
+		return tr("Sem efeito.")
+	var names := {"food": tr("Comida"), "thirst": tr("Água"), "sleep": tr("Sono"), "health": tr("Vida")}
 	var parts: Array[String] = []
 	for key in effects:
 		parts.append("%s %+d" % [names.get(key, key), int(effects[key])])
@@ -92,170 +134,221 @@ func _choose_or_cancel(options: Array, title: String) -> int:
 # ============================ cafeteria ============================
 func _cafeteria_item(_source: Node, id: String, title: String, now_label: String) -> void:
 	var label := GameState.item_name(id)
-	var i := await UI.choose([now_label, "Guardar na mochila", "Cancelar"], title)
+	var i := await UI.choose([now_label, tr("Guardar na mochila"), tr("Cancelar")], title)
 	if i == 0:
 		GameState.use_item(id)
 		await UI.say("%s! %s" % [label, _effects_text(GameState.ITEMS[id]["effects"])])
 	elif i == 1:
 		if GameState.add_item(id):
-			await UI.say("%s guardado na mochila." % label)
+			await UI.say(tr("%s guardado na mochila.") % label)
 		else:
-			await UI.say("A mochila está cheia! (%d espaços)" % GameState.INVENTORY_SLOTS)
+			await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
 
 
 # ============================ dormitorio ============================
 func _bunk() -> void:
-	var i := await UI.choose(["Dormir", "Cancelar"], "Beliche (2 vagas)")
+	var i := await UI.choose([tr("Dormir"), tr("Cancelar")], tr("Beliche (2 vagas)"))
 	if i != 0:
 		return
 	UI.lock()
 	await UI.blink(1.2, 0.8)
 	UI.unlock()
 	GameState.apply_effects({"sleep": 100.0, "food": -10.0, "thirst": -10.0})
-	await UI.say(["Você dormiu um pouco.", "Sono restaurado, mas deu fome e sede. (Sistema com %d camas: em breve)" % GameState.BEDS])
+	await UI.say([tr("Você dormiu um pouco."), tr("Sono restaurado, mas deu fome e sede. (Sistema com %d camas: em breve)") % GameState.BEDS])
 
 
 # ============================ armazem ============================
 func _impressora() -> void:
-	var i := await UI.choose(["Produzir ração", "Fechar"], "Impressora de comida")
+	var i := await UI.choose([tr("Produzir ração"), tr("Fechar")], tr("Impressora de comida"))
 	if i != 0:
 		return
 	if GameState.output_rations >= 5:
-		await UI.say("A saída já está cheia (5 rações). Retire no terminal ao lado esquerdo.")
+		await UI.say(tr("A saída já está cheia (5 rações). Retire no terminal ao lado esquerdo."))
 		return
-	UI.toast("Produzindo ração...", GameState.PRODUCE_TIME)
+	UI.toast(tr("Produzindo ração..."), GameState.PRODUCE_TIME)
 	await get_tree().create_timer(GameState.PRODUCE_TIME).timeout
 	GameState.output_rations += 1
 	GameState.inventory_changed.emit()
-	await UI.say(["Ração pronta!", "Ela saiu no terminal grande da esquerda."])
+	await UI.say([tr("Ração pronta!"), tr("Ela saiu no terminal grande da esquerda.")])
 
 
 func _terminal_saida() -> void:
 	var n := GameState.output_rations
 	if n <= 0:
-		await UI.say("Nenhuma ração pronta. Produza uma na impressora de comida (máquina da direita).")
+		await UI.say(tr("Nenhuma ração pronta. Produza uma na impressora de comida (máquina da direita)."))
 		return
-	var i := await UI.choose(["Retirar ração (%d)" % n, "Fechar"], "Terminal de saída")
+	var i := await UI.choose([tr("Retirar ração (%d)") % n, tr("Fechar")], tr("Terminal de saída"))
 	if i != 0:
 		return
 	if not GameState.inventory_has_room():
-		await UI.say("A mochila está cheia! (%d espaços)" % GameState.INVENTORY_SLOTS)
+		await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
 		return
 	GameState.output_rations -= 1
 	GameState.add_item("racao")
-	await UI.say("Você pegou 1 ração.")
+	await UI.say(tr("Você pegou 1 ração."))
 
 
 func _armario() -> void:
+	var g = UI.open_grid("storage")
+	g.desc_provider = _storage_text
 	while true:
-		var title := "Armário %d/%d" % [GameState.storage.size(), GameState.STORAGE_SLOTS]
-		var i := await UI.choose(["Guardar item", "Retirar item", "Ver conteúdo", "Fechar"], title)
-		if i < 0 or i == 3:
-			return
-		if i == 0:
-			await _armario_guardar()
-		elif i == 1:
-			await _armario_retirar()
+		g.set_items(GameState.storage)
+		var i: int = await g.picked
+		if i < 0:
+			break
+		if i < GameState.storage.size():
+			var id: String = GameState.storage[i]
+			var a := await UI.choose([tr("Retirar para a mochila"), tr("Voltar")], GameState.item_name(id))
+			if a == 0 and not GameState.take_storage_at(i):
+				await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
 		else:
-			await _armario_ver()
+			await _armario_guardar()
+	g.queue_free()
+
+
+func _storage_text(_i: int, id: String) -> String:
+	var head := tr("Armário %d/%d") % [GameState.storage.size(), GameState.STORAGE_SLOTS]
+	if id == "":
+		return head + tr("\nEspaço vazio.   F: guardar um item da mochila   Esc: fechar")
+	return tr("%s: %s\n%s   F: retirar   Esc: fechar") % [head, GameState.item_name(id), _effects_text(GameState.ITEMS[id]["effects"])]
 
 
 func _armario_guardar() -> void:
 	if not GameState.storage_has_room():
-		await UI.say("O armário está cheio! (%d espaços)" % GameState.STORAGE_SLOTS)
+		await UI.say(tr("O armário está cheio! (%d espaços)") % GameState.STORAGE_SLOTS)
 		return
 	var ids := GameState.unique_ids(GameState.inventory)
 	if ids.is_empty():
-		await UI.say("Você não tem nada na mochila para guardar.")
+		await UI.say(tr("Você não tem nada na mochila para guardar."))
 		return
 	var opts: Array = []
 	for id in ids:
 		opts.append(GameState.item_name(id))
-	opts.append("Voltar")
-	var i := await UI.choose(opts, "Guardar qual item?")
+	opts.append(tr("Voltar"))
+	var i := await UI.choose(opts, tr("Guardar qual item?"))
 	if i >= 0 and i < ids.size() and GameState.store_item(ids[i]):
-		await UI.say("%s guardado no armário." % GameState.item_name(ids[i]))
-
-
-func _armario_retirar() -> void:
-	var ids := GameState.unique_ids(GameState.storage)
-	if ids.is_empty():
-		await UI.say("O armário está vazio.")
-		return
-	var opts: Array = []
-	for id in ids:
-		opts.append("%s x%d" % [GameState.item_name(id), GameState.count_of(GameState.storage, id)])
-	opts.append("Voltar")
-	var i := await UI.choose(opts, "Retirar qual item?")
-	if i < 0 or i >= ids.size():
-		return
-	if GameState.take_from_storage(ids[i]):
-		await UI.say("Você pegou %s." % GameState.item_name(ids[i]))
-	else:
-		await UI.say("A mochila está cheia! (%d espaços)" % GameState.INVENTORY_SLOTS)
-
-
-func _armario_ver() -> void:
-	if GameState.storage.is_empty():
-		await UI.say("Armário vazio (0/%d espaços usados)." % GameState.STORAGE_SLOTS)
-		return
-	var parts: Array[String] = []
-	for id in GameState.unique_ids(GameState.storage):
-		parts.append("%s x%d" % [GameState.item_name(id), GameState.count_of(GameState.storage, id)])
-	await UI.say("%d/%d espaços usados: %s" % [GameState.storage.size(), GameState.STORAGE_SLOTS, ", ".join(parts)])
+		await UI.say(tr("%s guardado no armário.") % GameState.item_name(ids[i]))
 
 
 func _capsula() -> void:
-	if GameState.capsule_item != "":
-		await UI.say("A cápsula está a caminho da Terra com %s. Volta em %d s." % [GameState.item_name(GameState.capsule_item), ceili(GameState.capsule_left)])
-		return
-	if GameState.capsule_ready != "":
-		if GameState.collect_capsule():
-			await UI.say("Você pegou o item que voltou da Terra.")
+	# A cápsula tem 1 ESPAÇO: ou leva um item para a Terra, ou traz um item de volta.
+	while true:
+		var title := tr("Cápsula (1 espaço)")
+		var i := await UI.choose([tr("Enviar item"), tr("Retirar item"), tr("Fechar")], title)
+		if i == 0:
+			if not await _capsula_enviar():
+				continue
+			return
+		elif i == 1:
+			if await _capsula_retirar():
+				return
 		else:
-			await UI.say("Há um item esperando na cápsula, mas sua mochila está cheia!")
-		return
+			return
+
+
+func _capsula_ocupada() -> bool:
+	if GameState.capsule_item != "":
+		if GameState.capsule_hold:
+			await UI.say([tr("%s está na Terra, esperando o veredito da base.") % GameState.item_name(GameState.capsule_item), tr("Aperte 1 para ver a base (cientista).")])
+		else:
+			await UI.say(tr("A cápsula está a caminho da Terra com: %s. Chega em %d s.") % [GameState.item_name(GameState.capsule_item), ceili(GameState.capsule_left)])
+		return true
+	if GameState.capsule_ready != "":
+		await UI.say(tr("O espaço da cápsula está ocupado por: %s. Retire primeiro.") % GameState.item_name(GameState.capsule_ready))
+		return true
+	return false
+
+
+## true = acabou (enviou); false = volta ao menu
+func _capsula_enviar() -> bool:
+	if not Voyage.comms_ok():
+		await UI.say(tr("Sem contato com a base: a cápsula está bloqueada pela interferência."))
+		return false
+	if await _capsula_ocupada():
+		return false
 	var ids := GameState.unique_ids(GameState.inventory)
 	if ids.is_empty():
-		await UI.say("Cápsula para a Terra. Leve um item da mochila para enviar.")
-		return
+		await UI.say(tr("Você não tem nada na mochila para enviar."))
+		return false
 	var opts: Array = []
 	for id in ids:
 		opts.append(GameState.item_name(id))
-	opts.append("Cancelar")
-	var i := await UI.choose(opts, "Enviar para a Terra")
-	if i >= 0 and i < ids.size() and GameState.send_to_earth(ids[i]):
-		await UI.say("%s enviado! Ele volta em %d segundos." % [GameState.item_name(ids[i]), int(GameState.CAPSULE_TIME)])
+	opts.append(tr("Voltar"))
+	var i := await UI.choose(opts, tr("Enviar para a Terra"))
+	if i < 0 or i >= ids.size():
+		return false
+	var chosen: String = ids[i]
+	if chosen == "amostra":
+		# amostra da missao: a BASE analisa; ela fica na Terra ate o veredito
+		if not Missions.is_step("enviar"):
+			await UI.say(tr("Esta amostra ainda não está pronta para ser enviada."))
+			return false
+		if GameState.send_to_earth(chosen, true):
+			Missions.send_data()
+			await UI.say([tr("Amostra enviada à Terra."), tr("A base vai analisar e dar o veredito; só então ela volta. Aperte 1 para ir à base.")])
+			return true
+		return false
+	if GameState.send_to_earth(chosen):
+		await UI.say(tr("Enviado à Terra: %s. Chega de volta em %d segundos.") % [GameState.item_name(chosen), int(GameState.CAPSULE_TIME)])
+		return true
+	return false
+
+
+## true = retirou (fecha o menu); false = volta ao menu
+func _capsula_retirar() -> bool:
+	if GameState.capsule_ready == "":
+		if GameState.capsule_item != "":
+			await _capsula_ocupada()
+		else:
+			await UI.say(tr("Não há nada na cápsula para retirar."))
+		return false
+	var id: String = GameState.capsule_ready
+	if not GameState.collect_capsule():
+		await UI.say(tr("Sua mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
+		return false
+	if id == "amostra" and not Missions.result_lines.is_empty():
+		await UI.say(tr("Você retirou: %s.") % GameState.item_name(id))
+		await UI.say(Missions.take_result())
+	else:
+		await UI.say(tr("Você retirou: %s.") % GameState.item_name(id))
+	return true
 
 
 # ============================ sala do reator ============================
 func _nucleo() -> void:
 	while true:
-		var title := "Núcleo %d%%" % int(round(GameState.heat))
-		var i := await UI.choose(["Resfriar núcleo", "Ver temperatura", "Fechar"], title)
-		if i == 0:
+		var title := tr("Núcleo %d%%") % int(round(GameState.heat))
+		if GameState.meltdown_left >= 0.0:
+			title += tr("  EXPLODE EM %d s") % ceili(GameState.meltdown_left)
+		var opts: Array = [tr("Resfriar núcleo"), tr("Ver temperatura"), tr("Fechar")]
+		if Voyage.event == "reactor":
+			opts.insert(2, tr("Ajustar válvulas (URGENTE)"))
+		var i := await UI.choose(opts, title)
+		if opts[maxi(i, 0)] == tr("Ajustar válvulas (URGENTE)") and i >= 0:
+			await _valvulas()
+		elif i == 0:
 			GameState.cool_core(50.0)
-			await UI.say("Sistema de resfriamento ativado. Núcleo em %d%%." % int(round(GameState.heat)))
+			await UI.say(tr("Sistema de resfriamento ativado. Núcleo em %d%%.") % int(round(GameState.heat)))
 		elif i == 1:
-			var state := "estável"
+			var state := tr("estável")
 			if GameState.heat >= GameState.HEAT_WARNING:
-				state = "PERIGOSO"
+				state = tr("PERIGOSO")
 			elif GameState.heat >= 60.0:
-				state = "quente"
-			await UI.say("Temperatura do núcleo: %d%% (%s)." % [int(round(GameState.heat)), state])
+				state = tr("quente")
+			await UI.say(tr("Temperatura do núcleo: %d%% (%s).") % [int(round(GameState.heat)), state])
 		else:
 			return
 
 
 func _botiquim() -> void:
-	var i := await UI.choose(["Curar-se", "Fechar"], "Kit médico")
+	var i := await UI.choose([tr("Curar-se"), tr("Fechar")], tr("Kit médico"))
 	if i != 0:
 		return
 	if GameState.health >= 100.0:
-		await UI.say("Você já está com a vida cheia.")
+		await UI.say(tr("Você já está com a vida cheia."))
 		return
 	GameState.heal(50.0)
-	await UI.say("Você se curou. Vida: %d." % int(round(GameState.health)))
+	await UI.say(tr("Você se curou. Vida: %d.") % int(round(GameState.health)))
 
 
 # ============================ sala de controle ============================
@@ -275,93 +368,270 @@ func _name_of(table: Dictionary, id: String) -> String:
 
 func _mission_console() -> void:
 	while true:
-		var opts: Array = [
-			"Dificuldade: " + Mission.DIFFICULTY_NAMES[Mission.difficulty],
-			"1 Objetivo: " + _name_of(Mission.OBJECTIVES, Mission.objective),
-			"2 Instrumentos (%d)" % Mission.instruments.size(),
-			"3 Energia: " + _name_of(Mission.ARRAYS, Mission.array_id),
-			"4 Lançador: " + _name_of(Mission.LAUNCHERS, Mission.launcher),
-			"5 Órbita: " + _name_of(Mission.ORBITS, Mission.orbit),
-			"6 Solo: " + _name_of(Mission.STATIONS, Mission.station),
-			"Revisar projeto",
-			"LANÇAR MISSÃO",
-			"Levantar",
-		]
-		var i := await UI.choose(opts, "Console de missão")
-		match i:
-			0:
-				var keys := Mission.BUDGETS.keys()
-				Mission.difficulty = keys[(keys.find(Mission.difficulty) + 1) % keys.size()]
-				await UI.say("Orçamento: %d M$." % int(Mission.budget()))
-			1:
-				await _pick("Objetivo científico", Mission.OBJECTIVES, "objective", _obj_label)
-			2:
-				await _pick_instruments()
-			3:
-				await _pick("Energia", Mission.ARRAYS, "array_id", _array_label)
-			4:
-				await _pick("Lançador", Mission.LAUNCHERS, "launcher", _launcher_label)
-			5:
-				await _pick("Órbita", Mission.ORBITS, "orbit", _orbit_label)
-			6:
-				await _pick("Estação terrestre", Mission.STATIONS, "station", _station_label)
-			7:
-				await UI.say(Mission.review_lines())
-			8:
-				var r := Mission.launch()
-				await UI.say(r["lines"])
-			_:
-				return
-
-
-func _pick(title: String, table: Dictionary, field: String, label: Callable) -> void:
-	var ids := table.keys()
-	var opts: Array = []
-	for id in ids:
-		opts.append(label.call(id))
-	opts.append("Voltar")
-	var i := await UI.choose(opts, title)
-	if i >= 0 and i < ids.size():
-		Mission.set(field, ids[i])
-
-
-func _pick_instruments() -> void:
-	while true:
-		var ids := Mission.INSTRUMENTS.keys()
+		var title := ""
 		var opts: Array = []
-		for id in ids:
-			var ins: Dictionary = Mission.INSTRUMENTS[id]
-			var mark := "[x] " if Mission.instruments.has(id) else "[ ] "
-			opts.append("%s%s %dkg %dW %.0fd %dM$" % [mark, ins["name"], int(ins["mass"]), int(ins["power"]), ins["data"], int(ins["cost"])])
-		opts.append("Concluir")
-		var i := await UI.choose(opts, "Instrumentos %d/%d" % [Mission.instruments.size(), Mission.MAX_INSTRUMENTS])
-		if i < 0 or i >= ids.size():
+		var acts: Array = []
+		if Voyage.active:
+			title = tr("Viagem: %s") % tr(Voyage.route)
+			opts.append(tr("Mapa espacial"))
+			acts.append("mapa")
+			if Voyage.maneuver_available():
+				opts.append(tr("Manobra evasiva"))
+				acts.append("manobra")
+		elif Missions.is_step("rota"):
+			title = tr("Escolha a rota")
+			for r in ROUTES:
+				opts.append(tr("Iniciar viagem: ") + tr(r))
+				acts.append("rota:" + r)
+		else:
+			title = tr("Rota: ") + (tr(GameState.route) if GameState.route != "" else tr("nenhum"))
+			for r in ROUTES:
+				opts.append(tr("Ir para ") + tr(r))
+				acts.append("define:" + r)
+		opts.append(tr("Levantar"))
+		acts.append("levantar")
+		var i := await UI.choose(opts, title)
+		if i < 0 or acts[i] == "levantar":
+			break
+		var a: String = acts[i]
+		if a == "mapa":
+			await UI.say(Voyage.map_text())
+		elif a == "manobra":
+			await UI.say(Voyage.maneuver())
+		elif a.begins_with("rota:"):
+			var r := a.substr(5)
+			var c := await UI.choose([tr("Confirmar viagem para %s") % tr(r), tr("Voltar")], tr("Rota: ") + tr(r))
+			if c == 0:
+				Voyage.start(r)
+				Missions.complete("rota")
+				await planet_transition()
+				await UI.say([tr("Viagem iniciada: %s.") % tr(r), tr("A base prevê os perigos; a nave faz as manobras. Cuide da energia e do combustível!")])
+				break
+		else:
+			var r2 := a.substr(7)
+			GameState.route = r2
+			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
+	player.stand(stand_pos)
+
+
+
+# ============================ missoes ============================
+func open_missions() -> void:
+	await UI.show_panel(Missions.summary_text())
+
+
+# Missao 1 (espaco): pegar pacotes -> aquecer -> centrifugar -> enviar pela capsula (a base analisa).
+# As estacoes usam objetos que ja existem nas salas (placeholders ate chegarem as imagens finais).
+func _estante_culturas() -> void:
+	if not Missions.is_step("pacotes"):
+		await UI.say(tr("Estante com pacotes de culturas e materiais diversos."))
+		return
+	var i := await UI.choose([tr("Pegar pacote de cultura de fungos"), tr("Cancelar")], tr("Estante de culturas"))
+	if i != 0:
+		return
+	if not GameState.add_item("pacote_fungos"):
+		await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
+		return
+	Missions.complete("pacotes")
+	await UI.say([tr("Você pegou um pacote com a cultura de fungos."), tr("Leve-o à máquina de aquecimento (os containers azuis, no canto direito).")])
+
+
+func _aquecedor() -> void:
+	match Missions.heater_state:
+		"heating":
+			await UI.say(tr("Aquecendo os pacotes... faltam %d s.") % ceili(Missions.heating_left))
+		"ready":
+			if not GameState.add_item("pacote_quente"):
+				await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
+				return
+			Missions.heater_state = "idle"
+			Missions.complete("aquecer")
+			await UI.say([tr("Pacote aquecido!"), tr("Agora leve para a centrífuga (sala de controle, máquinas do canto esquerdo).")])
+		_:
+			if Missions.is_step("aquecer") and GameState.inventory.has("pacote_fungos"):
+				var i := await UI.choose([tr("Colocar pacote para aquecer"), tr("Cancelar")], tr("Máquina de aquecimento"))
+				if i == 0 and GameState.remove_item("pacote_fungos"):
+					Missions.heater_state = "heating"
+					Missions.heating_left = Missions.HEAT_TIME
+					Missions.changed.emit()
+					await UI.say(tr("Aquecendo... volte em %d segundos.") % int(Missions.HEAT_TIME))
+			else:
+				await UI.say(tr("Máquina de aquecimento. (Precisa de um pacote de cultura de fungos.)"))
+
+
+func _centrifuga() -> void:
+	if Missions.is_step("centrifugar") and GameState.inventory.has("pacote_quente"):
+		var i := await UI.choose([tr("Esvaziar e centrifugar"), tr("Cancelar")], tr("Centrífuga"))
+		if i != 0:
 			return
-		if not Mission.toggle_instrument(ids[i]):
-			await UI.say("Máximo de %d instrumentos." % Mission.MAX_INSTRUMENTS)
+		UI.toast(tr("Centrifugando..."), Missions.SPIN_TIME)
+		await get_tree().create_timer(Missions.SPIN_TIME).timeout
+		GameState.remove_item("pacote_quente")
+		GameState.add_item("amostra")
+		Missions.complete("centrifugar")
+		await UI.say([tr("Amostra centrifugada!"), tr("Envie-a à base pela cápsula do armazém (cilindro do canto direito).")])
+	else:
+		await UI.say(tr("Centrífuga. (Precisa de um pacote aquecido.)"))
 
 
-func _obj_label(id: String) -> String:
-	var o: Dictionary = Mission.OBJECTIVES[id]
-	return "%s: %.0f dados/dia, %d meses" % [o["name"], o["min_data"], o["months"]]
+# Missao 1 (Terra): a base conhece as coloracoes e decide sucesso ou falha.
+func _painel_base() -> void:
+	var table := tr("Colorações de SUCESSO: %s.   Colorações de FALHA: %s.") % [Missions.color_list(true), Missions.color_list(false)]
+	if not Voyage.comms_ok():
+		await UI.say([tr("SEM CONTATO com a nave (%d s).") % ceili(Voyage.blackout_left), tr("Painel da base indisponível durante a interferência.")])
+		return
+	if not Missions.is_step("veredito") and (Voyage.active or Missions.is_step("solar")):
+		await _base_viagem()
+		return
+	if not Missions.is_step("veredito"):
+		if Missions.data_sent or not Missions.finished.is_empty():
+			await UI.say([tr("Painel da base."), table])
+		else:
+			await UI.say([tr("Painel da base."), table, tr("Aguardando a amostra da nave.")])
+		return
+	if not Missions.analyzed:
+		await UI.say(tr("Analise a amostra na mesa do microscópio antes de dar o veredito."))
+		return
+	await UI.say([tr("Coloração observada: %s.") % Missions.color_name().to_upper(), table])
+	var i := await UI.choose([tr("Indicar SUCESSO"), tr("Indicar FALHA"), tr("Cancelar")], tr("Veredito da base"))
+	if i == 0 or i == 1:
+		await UI.say(Missions.verdict(i == 0))
 
 
-func _array_label(id: String) -> String:
-	var a: Dictionary = Mission.ARRAYS[id]
-	return "%s %dW %dkg %dM$" % [a["name"], int(a["watts"]), int(a["mass"]), int(a["cost"])]
+# ============================ dormitorio: checkup ============================
+func _checkup() -> void:
+	var i := await UI.choose([tr("Fazer checkup"), tr("Cancelar")], tr("Terminal médico"))
+	if i != 0:
+		return
+	UI.toast(tr("Escaneando..."), 1.6)
+	await get_tree().create_timer(1.6).timeout
+	var lines: Array = [tr("Checkup concluído.")]
+	lines.append(tr("Vida %d%%   Comida %d%%   Água %d%%   Sono %d%%") % [
+		int(round(GameState.health)), int(round(GameState.food)),
+		int(round(GameState.thirst)), int(round(GameState.sleep))])
+	var issues: Array[String] = []
+	if GameState.health < 60.0:
+		issues.append(tr("ferido"))
+	if GameState.food < 40.0:
+		issues.append(tr("com fome"))
+	if GameState.thirst < 40.0:
+		issues.append(tr("com sede"))
+	if GameState.sleep < 40.0:
+		issues.append(tr("cansado"))
+	lines.append(tr("Você está bem.") if issues.is_empty() else tr("Atenção: você está ") + ", ".join(issues) + ".")
+	if GameState.conditions.is_empty():
+		lines.append(tr("Nenhuma doença ou anomalia detectada."))
+	else:
+		lines.append(tr("Detectado: ") + ", ".join(GameState.conditions) + ".")
+	await UI.say(lines)
 
 
-func _launcher_label(id: String) -> String:
-	var l: Dictionary = Mission.LAUNCHERS[id]
-	var c: Dictionary = l["cap"]
-	return "%s %dM$ (LEO %d, GEO %d, L1 %d kg)" % [l["name"], int(l["cost"]), int(c["leo"]), int(c["geo"]), int(c["l1"])]
+# ============================ Missao 2: base e reator ============================
+func _base_viagem() -> void:
+	while true:
+		var opts: Array = []
+		var acts: Array = []
+		if Voyage.active:
+			opts.append_array([tr("Monitor da nave"), tr("Previsão de perigos"), tr("Enviar alerta à nave")])
+			acts.append_array(["monitor", "previsao", "alerta"])
+		if Missions.is_step("solar"):
+			opts.append(tr("Terminal solar (CME)"))
+			acts.append("solar")
+		opts.append(tr("Fechar"))
+		acts.append("fechar")
+		var i := await UI.choose(opts, tr("Painel da base"))
+		if i < 0 or acts[i] == "fechar":
+			return
+		match String(acts[i]):
+			"monitor":
+				await UI.show_panel(Voyage.monitor_text())
+			"previsao":
+				await UI.show_panel(Voyage.forecast_text())
+			"alerta":
+				await _enviar_alerta()
+			"solar":
+				await _terminal_solar()
+				if not Missions.is_step("solar"):
+					return
 
 
-func _orbit_label(id: String) -> String:
-	var o: Dictionary = Mission.ORBITS[id]
-	return "%s: eclipse %d%%, link %.1f" % [o["name"], int(float(o["eclipse"]) * 100.0), o["link"]]
+func _enviar_alerta() -> void:
+	if Voyage.event == "asteroid":
+		# minigame de calculo: tempo de impacto = distancia / velocidade
+		var speed: float = Voyage.asteroid["speed"]
+		var dist := int(speed * float(Voyage.asteroid["eta"]))
+		await UI.say([tr("Objeto detectado: velocidade %.1f km/s, distância %d km.") % [speed, dist], tr("Calcule: tempo = distância ÷ velocidade.")])
+		var vals: Array = Voyage.asteroid_choices()
+		var labels: Array = []
+		for v in vals:
+			labels.append(tr("Impacto em %d s") % int(v))
+		var k := await UI.choose(labels, tr("Quando ele atinge a nave?"))
+		if k >= 0:
+			Voyage.set_estimate(int(vals[k]))
+	await UI.say(Voyage.send_alert())
 
 
-func _station_label(id: String) -> String:
-	var s: Dictionary = Mission.STATIONS[id]
-	return "%s %.0f dados/dia %dM$" % [s["name"], s["rate"], int(s["cost"])]
+# Valvulas do reator (astronauta): girar uma valvula gira tambem as vizinhas. O tempo corre durante o minigame.
+func _valvulas() -> void:
+	UI.realtime = true
+	while Voyage.event == "reactor":
+		var opts: Array = []
+		for k in 5:
+			opts.append(tr("Girar válvula %d") % (k + 1))
+		opts.append(tr("Sair"))
+		var i := await UI.choose(opts, tr("%s   Eficiência %d%%") % [Voyage.valve_state_text(), int(Voyage.reactor_eff())])
+		if i < 0 or i >= 5:
+			break
+		Voyage.press(i)
+	UI.realtime = false
+
+
+# Cutscene usada SEMPRE que a nave troca de planeta (saida para um novo destino).
+func planet_transition() -> void:
+	await UI.play_video(PLANET_TRANSITION)
+	await UI.fade_to(0.0, 0.6)
+
+
+# ============================ Missao 3: CME ============================
+# Base: terminal solar em "tempo real" + manual; decide alertar ou ignorar.
+func _terminal_solar() -> void:
+	while true:
+		await UI.show_panel("", Callable(Solar, "terminal_text"))
+		var i := await UI.choose([tr("Enviar alerta de abrigo"), tr("Ignorar (falso alarme)"), tr("Ver o terminal de novo")], tr("Decisão da base"))
+		if i == 0 or i == 1:
+			await UI.say(Solar.decide(i == 0))
+			return
+		if i < 0:
+			return
+
+
+# Astronauta: chave dos escudos no controle de energia (sala do reator, maquinas da esquerda).
+func _escudos() -> void:
+	if not Solar.alert_sent or Solar.resolved:
+		await UI.say(tr("Controle de energia e suporte de vida. Nenhum alerta solar ativo."))
+		return
+	if Solar.shield_on:
+		await UI.say(tr("Os escudos já estão ativos. Aguarde a onda passar."))
+		return
+	var i := await UI.choose([tr("Ativar escudos"), tr("Cancelar")], tr("Controle de energia"))
+	if i == 0:
+		Solar.activate_shield()
+		await UI.say([tr("Escudos ativados!"), tr("Energia redirecionada. Aguarde a onda passar.")])
+
+
+# Mesa de analise (lado da Terra): menu do que analisar + minigame da placa de Petri.
+func _mesa_analise() -> void:
+	if not Missions.is_step("veredito"):
+		await UI.say(tr("Mesa de análise. Nenhuma amostra para analisar."))
+		return
+	if Missions.analyzed:
+		await UI.say([tr("A amostra já foi analisada."), tr("Coloração observada: %s.") % Missions.color_name().to_upper(), tr("Agora dê o veredito no painel da base.")])
+		return
+	var i := await UI.choose([tr("Fungo (amostra da nave)"), tr("Cancelar")], tr("O que você quer analisar?"))
+	if i != 0:
+		return
+	var g = UI.open_petri()
+	await g.closed
+	g.queue_free()
+	if Missions.analyzed:
+		await UI.say([tr("Análise concluída."), tr("Coloração observada: %s.") % Missions.color_name().to_upper(), tr("Agora dê o veredito no painel da base.")])
