@@ -53,6 +53,14 @@ func _ready() -> void:
 	_setup_input()
 
 
+func _emit_state_change() -> void:
+	changed.emit()
+
+
+func _emit_inventory_change() -> void:
+	inventory_changed.emit()
+
+
 func reset() -> void:
 	food = 100.0
 	thirst = 100.0
@@ -68,8 +76,8 @@ func reset() -> void:
 	route = ""
 	tutorial_done = false
 	_heat_warned = false
-	changed.emit()
-	inventory_changed.emit()
+	_emit_state_change()
+	_emit_inventory_change()
 
 
 func _process(delta: float) -> void:
@@ -98,7 +106,7 @@ func _process(delta: float) -> void:
 		notice.emit("O núcleo do reator está esquentando!")
 	elif heat < HEAT_WARNING - 10.0:
 		_heat_warned = false
-	changed.emit()
+	_emit_state_change()
 
 
 # --- necessidades ---
@@ -107,7 +115,7 @@ func apply_effects(effects: Dictionary) -> void:
 	thirst = clampf(thirst + effects.get("thirst", 0.0), 0.0, 100.0)
 	sleep = clampf(sleep + effects.get("sleep", 0.0), 0.0, 100.0)
 	health = clampf(health + effects.get("health", 0.0), 0.0, 100.0)
-	changed.emit()
+	_emit_state_change()
 
 
 func use_item(id: String) -> void:
@@ -116,12 +124,12 @@ func use_item(id: String) -> void:
 
 func cool_core(amount: float) -> void:
 	heat = maxf(0.0, heat - amount)
-	changed.emit()
+	_emit_state_change()
 
 
 func heal(amount: float) -> void:
 	health = clampf(health + amount, 0.0, 100.0)
-	changed.emit()
+	_emit_state_change()
 
 
 # --- inventario ---
@@ -137,7 +145,7 @@ func add_item(id: String) -> bool:
 	if not inventory_has_room():
 		return false
 	inventory.append(id)
-	inventory_changed.emit()
+	_emit_inventory_change()
 	return true
 
 
@@ -146,7 +154,7 @@ func remove_item(id: String) -> bool:
 	if i < 0:
 		return false
 	inventory.remove_at(i)
-	inventory_changed.emit()
+	_emit_inventory_change()
 	return true
 
 
@@ -159,7 +167,7 @@ func store_item(id: String) -> bool:
 	if not storage_has_room() or not remove_item(id):
 		return false
 	storage.append(id)
-	inventory_changed.emit()
+	_emit_inventory_change()
 	return true
 
 
@@ -169,7 +177,7 @@ func take_from_storage(id: String) -> bool:
 		return false
 	storage.remove_at(i)
 	inventory.append(id)
-	inventory_changed.emit()
+	_emit_inventory_change()
 	return true
 
 
@@ -196,7 +204,7 @@ func send_to_earth(id: String) -> bool:
 		return false
 	capsule_item = id
 	capsule_left = CAPSULE_TIME
-	inventory_changed.emit()
+	_emit_inventory_change()
 	return true
 
 
@@ -209,7 +217,7 @@ func _capsule_arrived() -> void:
 	else:
 		capsule_ready = id
 		notice.emit("A cápsula voltou, mas a mochila está cheia!")
-	inventory_changed.emit()
+	_emit_inventory_change()
 
 
 func collect_capsule() -> bool:

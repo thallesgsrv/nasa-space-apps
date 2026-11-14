@@ -13,20 +13,20 @@ const SCIENTIST_SCENE := preload("res://scenes/scientist.tscn")
 @onready var astronaut: CharacterBody2D = $World/Player
 @onready var fade: ColorRect = $FadeLayer/Fade
 
-var player: CharacterBody2D   # personagem controlado agora (astronauta na estacao, cientista na Terra)
+var player: CharacterBody2D
 var scientist: CharacterBody2D
 var _room: Node2D
 var _busy := false
 var _on_earth := false
-var _saved_room := ""         # sala da estacao onde o astronauta ficou
+var _saved_room := ""
 var _saved_pos := Vector2.ZERO
 
 
 func _ready() -> void:
 	player = astronaut
 	scientist = SCIENTIST_SCENE.instantiate()
-	fade.color.a = 1.0 # comeca preto e clareia
-	UI.fade_to(0.0, 0.0) # tira o escurecimento do menu inicial
+	fade.color.a = 1.0
+	UI.fade_to(0.0, 0.0)
 	UI.show_hud(true)
 	GameState.running = true
 	_load_room(START_ROOM, START_SPAWN)
@@ -42,7 +42,7 @@ func change_room(room_path: String, spawn_name: String) -> void:
 	if _busy or room_path.is_empty():
 		return
 	_busy = true
-	player.set_physics_process(false) # congela o jogador durante a troca
+	player.set_physics_process(false)
 	await _fade_to(1.0)
 	_load_room(room_path, spawn_name)
 	await _fade_to(0.0)
@@ -53,20 +53,24 @@ func change_room(room_path: String, spawn_name: String) -> void:
 func _load_room(room_path: String, spawn_name: String) -> void:
 	if _room != null:
 		_room.queue_free()
-		world.remove_child(_room) # sai da arvore agora, evita portas antigas disparando
+		world.remove_child(_room)
 	var scene := load(room_path) as PackedScene
 	if scene == null:
 		push_error("Sala nao encontrada: " + room_path)
 		return
 	_room = scene.instantiate()
 	world.add_child(_room)
-	world.move_child(_room, 0) # sala atras, jogador na frente
-	for door in _room.find_children("*", "Area2D", true, false):
-		if door.has_signal("used"):
-			door.used.connect(change_room)
+	world.move_child(_room, 0)
+	_bind_room_doors()
 	if spawn_name != "":
 		player.global_position = _room.get_spawn_position(spawn_name)
 	player.velocity = Vector2.ZERO
+
+
+func _bind_room_doors() -> void:
+	for door in _room.find_children("*", "Area2D", true, false):
+		if door.has_signal("used"):
+			door.used.connect(change_room)
 
 
 func _fade_to(alpha: float) -> void:
@@ -76,7 +80,6 @@ func _fade_to(alpha: float) -> void:
 	await tween.finished
 
 
-# Tecla 1: alterna entre a estacao (astronauta) e a Terra (cientista).
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("switch_world") and not event.is_echo():
 		toggle_world()
@@ -106,7 +109,6 @@ func toggle_world() -> void:
 	_busy = false
 
 
-# Quem nao esta em jogo sai da arvore (sem colisao nem portas) e volta intacto depois.
 func _swap_player(next: CharacterBody2D) -> void:
 	if player.get_parent() == world:
 		world.remove_child(player)
