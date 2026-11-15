@@ -6,6 +6,7 @@ const START_SPAWN := "start"
 const EARTH_ROOM := "res://scenes/rooms/laboratorio.tscn"
 const EARTH_SPAWN := "from_station"
 const SCIENTIST_SCENE := preload("res://scenes/scientist.tscn")
+const GHOST := preload("res://scripts/ghost.gd")
 
 @export var fade_time: float = 0.35
 
@@ -23,6 +24,7 @@ var _saved_room := ""         # sala da estacao onde o astronauta ficou
 var _saved_pos := Vector2.ZERO
 var _partner_label: Label   # multiplayer: quem e o parceiro e onde ele esta
 var _report_shown := false
+var _ghosts: Dictionary = {}   # id do peer -> fantasma (outro jogador na mesma sala)
 
 
 func _ready() -> void:
@@ -38,9 +40,16 @@ func _ready() -> void:
 		Net.begin_game()
 		Net.partner_left.connect(_on_partner_left)
 		Net.partner_room_changed.connect(_refresh_partner_label)
+		Net.roster_changed.connect(_refresh_partner_label)
 		_build_partner_label()
-	if Net.is_client():
-		# multiplayer: o cliente e a BASE na Terra (cientista); o host e o astronauta na estacao
+	if Net.is_crew_client():
+		# engenheiro / astronauta 2: o proprio astronauta tambem usa a cor do papel
+		var suit := GHOST.frames_for(Net.my_role)
+		var anim := astronaut.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+		if suit != null and anim != null:
+			anim.sprite_frames = suit
+	if Net.is_client() and not Net.is_crew_client():
+		# multiplayer: a BASE na Terra (cientista); o host e o astronauta na estacao
 		world.remove_child(astronaut)
 		player = scientist
 		world.add_child(scientist)
@@ -50,7 +59,10 @@ func _ready() -> void:
 		_load_room(START_ROOM, START_SPAWN)
 	await _fade_to(0.0)
 	if Net.is_client():
-		UI.toast(tr("Você é a BASE na Terra (cientista). Seu parceiro é o astronauta na estação."), 6.0)
+		if Net.is_crew_client():
+			UI.toast(tr("Você é %s na estação. Núcleo e escudos são com você; o comandante conduz a missão.") % Net.role_name(Net.my_role), 6.0)
+		else:
+			UI.toast(tr("Você é a BASE na Terra (cientista). Seu parceiro é o astronauta na estação."), 6.0)
 		MissionState.changed.connect(_show_report_for_client)
 		return   # tutorial e missoes sao conduzidos pelo host
 	if not GameState.tutorial_done:
@@ -62,6 +74,40 @@ func _ready() -> void:
 		player.locked = false
 		if Missions.active == "" and Missions.finished.is_empty():
 			Missions.start("bionutrientes")
+
+
+func _process(_delta: float) -> void:
+	if not Net.is_online() or _room == null:
+		return
+	Net.report_pose(_room.scene_file_path, player.global_position, 0)
+	_update_ghosts()
+
+
+func _update_ghosts() -> void:
+	var seen := {}
+	for o in Net.others():
+		var id := int(o["id"])
+		seen[id] = true
+		if not _ghosts.has(id):
+			var g := Node2D.new()
+			g.set_script(GHOST)
+			g.setup(id, int(o["role"]), String(o["name"]))
+			_ghosts[id] = g
+		var ghost: Node2D = _ghosts[id]
+		var here: bool = String(o["scene"]) == _room.scene_file_path and not _busy
+		if here and ghost.get_parent() == null:
+			world.add_child(ghost)
+		elif not here and ghost.get_parent() != null:
+			world.remove_child(ghost)
+		if here:
+			ghost.set_target(o["pos"])
+	for id in _ghosts.keys():
+		if not seen.has(id):
+			var gone: Node2D = _ghosts[id]
+			if gone.get_parent() != null:
+				world.remove_child(gone)
+			gone.queue_free()
+			_ghosts.erase(id)
 
 
 func change_room(room_path: String, spawn_name: String) -> void:
@@ -221,10 +267,12 @@ func _build_partner_label() -> void:
 func _refresh_partner_label() -> void:
 	if _partner_label == null:
 		return
-	var role := tr("Astronauta") if Net.is_client() else tr("Base (cientista)")
-	var where := tr(Net.partner_room) if Net.partner_room != "" else tr("conectado")
-	_partner_label.text = "%s: %s" % [role, where]
-	_partner_label.visible = Net.has_partner()
+	var lines: Array[String] = []
+	for o in Net.others():
+		var where := tr(String(o["room"])) if String(o["room"]) != "" else tr("conectado")
+		lines.append("%s (%s): %s" % [Net.role_name(int(o["role"])), o["name"], where])
+	_partner_label.text = "\n".join(lines)
+	_partner_label.visible = Net.has_partner() and not lines.is_empty()
 
 
 # multiplayer: o relatorio final tambem aparece para a base (o host o gera e ele chega pelo espelho).
@@ -237,4 +285,7 @@ func _show_report_for_client() -> void:
 
 func _on_partner_left() -> void:
 	_refresh_partner_label()
-	UI.toast(tr("O cientista saiu da partida. Modo solo: aperte 1 para alternar entre os papéis."), 6.0)
+	if Net.partner_connected:
+		UI.toast(tr("Um jogador saiu da partida. A missão continua com os demais."), 5.0)
+	else:
+		UI.toast(tr("Todos os outros saíram. Modo solo: aperte 1 para alternar entre os papéis."), 6.0)

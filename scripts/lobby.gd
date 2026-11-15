@@ -1,6 +1,7 @@
 extends Control
-## Lobby do multiplayer em LAN. Telas: principal -> (criar sala | procurar salas | entrar por IP) -> aguardando.
-## Host = astronauta (estacao). Cliente = cientista (base na Terra). W/S escolhem, F/Enter confirma, Esc volta.
+## Lobby do multiplayer (LAN ou internet). Telas: principal -> (criar sala | procurar salas | entrar por IP/URL) -> aguardando.
+## Host = astronauta/comandante. Clientes: cientista, engenheiro de voo, astronauta 2 (ate 4 jogadores).
+## W/S escolhem, F/Enter confirma, Esc volta.
 
 const BG := preload("res://assets/ui/start_bg.png")
 const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
@@ -22,6 +23,8 @@ var _hint: Label
 var _ip_edit: LineEdit
 var _items: Array = []      # [{"label": String, "act": String, "arg": Variant}]
 var _starting := false
+var _url_mode := false      # tela de entrada: true = endereco ws://, false = IP da LAN
+var _web := OS.has_feature("web")
 
 
 func _ready() -> void:
@@ -66,6 +69,7 @@ func _ready() -> void:
 	_ip_edit.text_submitted.connect(func(_t: String) -> void: _join_ip(_ip_edit.text))
 	add_child(_ip_edit)
 	Net.lobby_changed.connect(_on_lobby_changed)
+	Net.roster_changed.connect(_on_lobby_changed)
 	Net.connected_to_host.connect(_on_connected)
 	Net.connection_failed.connect(_on_conn_failed)
 	Net.game_start_requested.connect(_on_start_requested)
@@ -101,14 +105,18 @@ func _go(s: S) -> void:
 		S.MAIN:
 			if Net.is_online():
 				Net.leave()
-			_title.text = tr("MULTIPLAYER LAN")
-			_body.text = tr("Dois jogadores na mesma rede. O HOST joga de astronauta na estação; o outro jogador é a BASE na Terra (cientista) e decide com as informações que só ele vê.")
-			_items = [
-				{"label": tr("CRIAR SALA (ser o astronauta)"), "act": "host"},
-				{"label": tr("PROCURAR SALAS (ser a base)"), "act": "browse"},
-				{"label": tr("ENTRAR POR IP"), "act": "ip"},
-				{"label": tr("VOLTAR"), "act": "back"},
-			]
+			_title.text = tr("MULTIPLAYER")
+			_body.text = tr("Até 4 jogadores. O HOST é o astronauta comandante na estação; os outros entram como BASE na Terra (cientista), engenheiro de voo e astronauta 2.")
+			_items = []
+			if _web:
+				_body.text += "\n" + tr("No navegador só é possível ENTRAR numa sala por endereço ws:// ou wss://.")
+			else:
+				_items.append({"label": tr("CRIAR SALA NA LAN (ser o comandante)"), "act": "host"})
+				_items.append({"label": tr("CRIAR SALA NA INTERNET (WebSocket)"), "act": "host_ws"})
+				_items.append({"label": tr("PROCURAR SALAS NA LAN"), "act": "browse"})
+				_items.append({"label": tr("ENTRAR POR IP"), "act": "ip"})
+			_items.append({"label": tr("ENTRAR POR ENDEREÇO (ws://)"), "act": "url"})
+			_items.append({"label": tr("VOLTAR"), "act": "back"})
 			_hint.text = tr("W / S: escolher     F ou Enter: confirmar")
 		S.HOSTING:
 			_title.text = tr("SALA CRIADA")
@@ -119,9 +127,12 @@ func _go(s: S) -> void:
 			_title.text = tr("SALAS NA REDE")
 			_refresh_browse()
 		S.IP:
-			_title.text = tr("ENTRAR POR IP")
-			_body.text = tr("Digite o IP do host (aparece na tela dele) e aperte Enter.")
+			_title.text = tr("ENTRAR POR ENDEREÇO") if _url_mode else tr("ENTRAR POR IP")
+			_body.text = tr("Digite o endereço da sala (ex.: ws://meu-servidor:24567) e aperte Enter.") if _url_mode else tr("Digite o IP do host (aparece na tela dele) e aperte Enter.")
 			_items = []
+			_ip_edit.max_length = 120 if _url_mode else 15
+			_ip_edit.placeholder_text = "ws://192.168.0.10:24567" if _url_mode else "192.168.0.10"
+			_ip_edit.size = Vector2(900 if _url_mode else 520, 56)
 			_ip_edit.visible = true
 			_ip_edit.text = ""
 			_ip_edit.grab_focus()
@@ -133,17 +144,44 @@ func _go(s: S) -> void:
 			_hint.text = tr("Esc: cancelar")
 		S.WAITING:
 			_title.text = tr("CONECTADO")
-			_body.text = tr("Você é a BASE na Terra (cientista). Aguardando o host iniciar a missão...")
-			_items = []
-			_hint.text = tr("Esc: sair da sala")
+			_refresh_waiting()
 	_render()
+
+
+func _roster_text() -> String:
+	var lines: Array[String] = []
+	var all: Array = []
+	for id in Net.roster:
+		all.append(Net.roster[id])
+	for e in all:
+		lines.append("%s: %s" % [Net.role_name(int(e["role"])), e["name"]])
+	return "\n".join(lines)
+
+
+func _refresh_waiting() -> void:
+	_body.text = tr("Você é: %s.\nJogadores:\n%s\n\nEscolha outro papel livre abaixo ou aguarde o host iniciar a missão.") % [Net.role_name(Net.my_role), _roster_text()]
+	_items = []
+	for r in Net.CLIENT_ROLE_ORDER:
+		if int(r) != Net.my_role and _role_free(int(r)):
+			_items.append({"label": tr("Trocar para: %s") % Net.role_name(int(r)), "act": "role", "arg": int(r)})
+	_hint.text = tr("W / S: escolher     F ou Enter: confirmar     Esc: sair da sala")
+
+
+func _role_free(role: int) -> bool:
+	for id in Net.roster:
+		if int(Net.roster[id]["role"]) == role:
+			return false
+	return true
 
 
 func _refresh_hosting() -> void:
 	var ips := Net.local_ips()
 	var ip_text := ", ".join(ips) if not ips.is_empty() else tr("(não encontrado)")
-	var status := tr("Cientista conectado! Pronto para começar.") if Net.partner_connected else tr("Aguardando o cientista entrar...")
-	_body.text = tr("Seu IP na rede: %s   Porta: %d\nO outro jogador pode achar a sala sozinho em PROCURAR SALAS.\n\n%s") % [ip_text, Net.PORT, status]
+	var status := tr("Jogadores conectados: %d de 4. Pode começar quando quiser.") % Net.roster.size() if Net.partner_connected else tr("Aguardando outros jogadores entrarem...")
+	if Net.transport == Net.Transport.WEBSOCKET:
+		_body.text = tr("Sala na internet (WebSocket). Seu IP na rede: %s   Porta: %d\nLibere a porta no roteador/firewall (ou use um túnel) e passe o endereço ws://SEU-IP:%d aos outros jogadores.\n\n%s\n%s") % [ip_text, Net.WS_PORT, Net.WS_PORT, status, _roster_text()]
+	else:
+		_body.text = tr("Seu IP na rede: %s   Porta: %d\nOs outros jogadores acham a sala sozinhos em PROCURAR SALAS.\n\n%s\n%s") % [ip_text, Net.PORT, status, _roster_text()]
 	_items = []
 	if Net.partner_connected:
 		_items.append({"label": tr("INICIAR MISSÃO"), "act": "start"})
@@ -174,7 +212,10 @@ func _render() -> void:
 
 # ---------------------------------------------------------------- eventos
 func _on_lobby_changed() -> void:
-	if _state == S.HOSTING:
+	if _state == S.WAITING:
+		_refresh_waiting()
+		_render()
+	elif _state == S.HOSTING:
 		_refresh_hosting()
 		_render()
 	elif _state == S.BROWSE:
@@ -229,16 +270,24 @@ func _back() -> void:
 func _activate(item: Dictionary) -> void:
 	Audio.sfx("select", 1.35, 0.5)
 	match String(item["act"]):
-		"host":
-			var err := Net.host_game()
+		"host", "host_ws":
+			var use_ws := String(item["act"]) == "host_ws"
+			var port := Net.WS_PORT if use_ws else Net.PORT
+			var err := Net.host_game(port, use_ws)
 			if err != OK:
-				_body.text = tr("Não foi possível criar a sala (porta %d em uso?).") % Net.PORT
+				_body.text = tr("Não foi possível criar a sala (porta %d em uso?).") % port
 				return
 			_go(S.HOSTING)
 		"browse":
 			_go(S.BROWSE)
 		"ip":
+			_url_mode = false
 			_go(S.IP)
+		"url":
+			_url_mode = true
+			_go(S.IP)
+		"role":
+			Net.request_role(int(item["arg"]))
 		"join":
 			_join(String(item["arg"]), int(item["port"]))
 		"start":
@@ -253,6 +302,13 @@ func _activate(item: Dictionary) -> void:
 
 func _join_ip(ip: String) -> void:
 	if ip.strip_edges() == "":
+		return
+	if _url_mode:
+		if Net.join_url(ip) != OK:
+			_go(S.MAIN)
+			_body.text = tr("Endereço inválido.")
+			return
+		_go(S.JOINING)
 		return
 	_join(ip, Net.PORT)
 

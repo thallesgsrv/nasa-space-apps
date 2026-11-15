@@ -14,17 +14,26 @@ o cientista da base na Terra. Os dois lados precisam cooperar para completar as 
 | 1 | alternar astronauta (estação) ↔ cientista (Terra) |
 | Esc | cancelar / fechar |
 
-## Multiplayer em LAN (2 jogadores)
-No menu inicial: **MULTIPLAYER LAN**. Cooperativo assimétrico, na mesma rede Wi-Fi/cabo:
-- **Host = astronauta** (estação). Escolhe **CRIAR SALA**, espera o outro jogador e aperta **INICIAR MISSÃO**.
-- **Cliente = base na Terra (cientista)**. Escolhe **PROCURAR SALAS** (a sala aparece sozinha, por broadcast UDP) ou **ENTRAR POR IP**.
-- A tecla **1** fica desativada: cada um tem o seu papel. A base vê o que só ela vê (previsão de perigos, análise da amostra, terminal solar) e suas decisões chegam ao astronauta em tempo real.
-- O host roda toda a simulação (necessidades, viagem, eventos). O cliente recebe um espelho do estado ~10x/s; as decisões da base
-  (`Missions.analyze_sample/verdict`, `Voyage.set_estimate/send_alert`, `Solar.decide`) são executadas no host (`Net.call_host`).
-- Portas: **UDP 24565** (jogo, ENet) e **UDP 24566** (descoberta). Libere no firewall se necessário.
-- Se o cientista sair, o host continua em modo solo (tecla 1 volta a funcionar). Se o host sair, o cliente volta ao menu.
-- Código: `scripts/net.gd` (autoload `Net`), `scripts/lobby.gd`. Teste de integração (dois processos):
-  `godot --headless res://tests/net_integration.tscn -- host` e, em outro terminal, `... -- client`.
+## Multiplayer (até 4 jogadores, LAN ou internet)
+No menu inicial: **MULTIPLAYER**. Cooperativo assimétrico; os papéis são atribuídos na ordem de entrada e podem ser trocados no lobby:
+| Papel | Onde | O que faz |
+|---|---|---|
+| **Host = astronauta comandante** | estação | joga a missão inteira (mochila, viagem, tasks) e roda toda a simulação |
+| **Base (cientista)** — 1º cliente | Terra | prevê perigos, analisa a amostra, dá o veredito, decide o alerta solar |
+| **Engenheiro de voo** — 2º cliente | estação | anda na nave; resfria o núcleo e ativa os escudos (pedidos executados no host) |
+| **Astronauta 2** — 3º cliente | estação | idem engenheiro |
+- Cada jogador vê os outros como "fantasmas" (boneco + nome) quando estão na mesma sala; a posição é replicada ~12x/s.
+- Um 5º jogador é recusado. Se um jogador sai, a missão continua; se o host sai, os clientes voltam ao menu.
+- **LAN (ENet/UDP)**: host em **CRIAR SALA NA LAN**; os outros em **PROCURAR SALAS NA LAN** (broadcast) ou **ENTRAR POR IP**. Portas: UDP **24565** (jogo) e **24566** (descoberta).
+- **Internet / navegador (WebSocket)**: o host (executável desktop) escolhe **CRIAR SALA NA INTERNET**, que abre a porta TCP **24567**; os outros entram em **ENTRAR POR ENDEREÇO** com `ws://IP-DO-HOST:24567` (no navegador só existe esta opção). Para `wss://` coloque um proxy TLS na frente. O host precisa de porta liberada no roteador/firewall (ou um túnel).
+- O host roda toda a simulação (necessidades, viagem, eventos). Os clientes recebem um espelho do estado ~10x/s; as decisões saem por `Net.call_host` e só passam se o **papel** do cliente permitir (`Net.CALL_ROLES`): a base decide pela Terra, a tripulação mexe em núcleo/escudos.
+- Código: `scripts/net.gd` (autoload `Net`), `scripts/lobby.gd`, `scripts/ghost.gd`.
+- Teste de integração com 4 jogadores + 1 recusado: `tools/run_net_tests.sh /caminho/godot ws` (ou `enet`). O teste antigo de 2 jogadores continua em `tests/net_integration.tscn -- host|client`.
+
+### Exportar para o navegador
+`export_presets.cfg` traz os presets **Web** (sem threads, não exige cabeçalhos COOP/COEP) e **Linux**. Instale os *export templates* do Godot 4.6 e rode, por exemplo,
+`godot --headless --export-release "Web" build/web/index.html`. Sirva a pasta `build/web` por HTTPS. O navegador só consegue **entrar** em salas; o host é um executável desktop.
+> Os presets foram escritos à mão e ainda **não foram exportados** (faltam os templates no ambiente onde foram criados): valide o primeiro export e o tamanho do `.pck` (~37 MB de assets).
 
 ## Missões
 1. **Bionutrientes** — pegar a cultura de fungos, aquecer, centrifugar e enviar pela cápsula; a base analisa a placa de Petri e dá o veredito.

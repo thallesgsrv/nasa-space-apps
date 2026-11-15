@@ -7,6 +7,9 @@ const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de contro
 const PLANET_TRANSITION := "res://assets/videos/transicao.ogv"  # cutscene de troca de planeta
 
 func run(action: String, source: Node, player: Node) -> void:
+	if Net.is_crew_client():
+		await _crew_action(action)
+		return
 	match action:
 		"fridge":
 			await _cafeteria_item(source, "refri", tr("Geladeira"), tr("Beber agora"))
@@ -48,6 +51,30 @@ func run(action: String, source: Node, player: Node) -> void:
 			await _painel_base()
 		_:
 			push_warning("Acao de interacao desconhecida: " + action)
+
+
+# ============================ tripulacao (multiplayer) ============================
+## Engenheiro de voo / astronauta 2 jogam na estacao, mas a simulacao e do host: aqui so existem as
+## acoes da funcao deles, executadas no host (Net.call_host). O resto e do comandante.
+func _crew_action(action: String) -> void:
+	match action:
+		"nucleo":
+			var title := tr("Núcleo %d%%") % int(round(GameState.heat))
+			var i := await UI.choose([tr("Resfriar núcleo"), tr("Fechar")], title)
+			if i == 0:
+				await Net.call_host("GameState", "crew_cool_core")
+				await UI.say(tr("Pedido de resfriamento enviado ao comandante."))
+		"escudos":
+			if not Solar.alert_sent or Solar.resolved:
+				await UI.say(tr("Controle de energia e suporte de vida. Nenhum alerta solar ativo."))
+			elif Solar.shield_on:
+				await UI.say(tr("Os escudos já estão ativos. Aguarde a onda passar."))
+			else:
+				var j := await UI.choose([tr("Ativar escudos"), tr("Cancelar")], tr("Controle de energia"))
+				if j == 0:
+					await Net.call_host("Solar", "activate_shield")
+		_:
+			await UI.say(tr("Só o comandante (host) opera este equipamento. Você cuida do núcleo e dos escudos."))
 
 
 # ============================ tutorial ============================
