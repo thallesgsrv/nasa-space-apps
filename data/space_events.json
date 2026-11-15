@@ -1,0 +1,9 @@
+{
+	"source": "archive",
+	"note": "Fallback offline curado manualmente de registros historicos de erupcoes solares. Confira as datas e classes no DONKI antes de apresentar como dado oficial.",
+	"events": [
+		{"id": "flare-2003-11-04", "kind": "flare", "class": "X28", "date": "2003-11-04", "title": "Erupção solar X28 (classe estimada)"},
+		{"id": "flare-2017-09-06", "kind": "flare", "class": "X9.3", "date": "2017-09-06", "title": "Erupção solar X9.3"},
+		{"id": "flare-2024-10-03", "kind": "flare", "class": "X9.0", "date": "2024-10-03", "title": "Erupção solar X9.0"}
+	]
+}

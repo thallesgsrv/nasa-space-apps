@@ -373,6 +373,10 @@ func _mission_console() -> void:
 			if Voyage.maneuver_available():
 				opts.append(tr("Manobra evasiva"))
 				acts.append("manobra")
+		elif Missions.is_step("retorno"):
+			title = tr("Retorno à Terra")
+			opts.append(tr("Iniciar o retorno à Terra"))
+			acts.append("retorno")
 		elif Missions.is_step("rota"):
 			title = tr("Escolha a rota")
 			for r in ROUTES:
@@ -393,6 +397,9 @@ func _mission_console() -> void:
 			await UI.say(Voyage.map_text())
 		elif a == "manobra":
 			await UI.say(Voyage.maneuver())
+		elif a == "retorno":
+			await MissionState.run_return()
+			break
 		elif a.begins_with("rota:"):
 			var r := a.substr(5)
 			var c := await UI.choose([tr("Confirmar viagem para %s") % tr(r), tr("Voltar")], tr("Rota: ") + tr(r))

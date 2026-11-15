@@ -21,6 +21,7 @@ func section(name: String) -> void:
 
 func _ready() -> void:
 	seed(12345)
+	MissionState.planning_disabled = true   # os testes de cena nao abrem o planejamento (CML)
 	await _test_scenes_load()
 	_test_restart_clears_state()
 	_test_death_by_zero_health()
@@ -31,6 +32,11 @@ func _ready() -> void:
 	_test_reactor_heat_never_cools()
 	_test_solar_flow()
 	_test_net_snapshot_roundtrip()
+	_test_nasa_feed()
+	await _test_planning_changes_voyage()
+	_test_quick_plan_keeps_old_behavior()
+	await _test_return_and_report()
+	_test_net_snapshot_has_mission_state()
 	await _test_net_client_is_mirror()
 	await _test_net_client_game_scene()
 	_test_translations()
@@ -265,6 +271,123 @@ func _test_solar_flow() -> void:
 	GameState.reset()
 
 
+# ---------------------------------------------------------------- planejamento, feed, retorno, relatorio
+func _test_nasa_feed() -> void:
+	section("feed NASA: arquivo local carrega e vira selo REAL")
+	check(NasaFeed.events.size() > 0, "ha eventos no arquivo de fallback")
+	var ev := NasaFeed.pick_flare()
+	check(ev.get("tag", "") == MissionState.TAG_REAL, "evento do feed tem selo REAL")
+	check(String(ev.get("label", "")).contains(String(ev.get("date", "?"))), "o selo mostra a data do registro")
+	check(NasaFeed.flux_for("X9.3") >= Solar.HIT_FLUX, "erupcao X e perigosa no jogo")
+	check(NasaFeed.flux_for("M5.0") < Solar.HIT_FLUX, "erupcao M nao passa do limite")
+	check(NasaFeed._parse("lixo") == false and NasaFeed.events.size() > 0, "feed invalido e ignorado")
+	Solar.generate()
+	check(Solar.source_tag != "", "CME gerada tem selo de origem")
+	GameState.reset()
+
+
+func _plan(picks: Array) -> void:
+	GameState.reset()
+	GameState.running = false
+	MissionState.auto_mode = true
+	MissionState.auto_picks = picks.duplicate()
+	await MissionState.run_planning()
+	MissionState.auto_mode = false
+
+
+func _test_planning_changes_voyage() -> void:
+	section("planejamento CML 1-9 grava parametros que mudam a viagem")
+	# 0 planejar | CML1 obj | CML2 foguete pequeno | CML3 energia, casco | CML4 kit | CML5 sem reserva | CML6 .. | CML7 nada (concluir)
+	await _plan([0, 1, 0, 0, 0, 0, 2, 0, 1, 1, 1, 1, 1, 1, 1, 0])
+	check(MissionState.planned and MissionState.cml_done == 9, "os 9 CMLs foram concluidos")
+	check(MissionState.objective == "radiation", "objetivo do CML 1 gravado")
+	check(MissionState.decisions.size() >= 9, "cada CML registrou decisao")
+	check(MissionState.p("credits") >= 0.0, "creditos nunca ficam negativos")
+	check(MissionState.p("mass_cap") == 105.0, "foguete pequeno do CML 2 vale no resto do jogo")
+	check(not MissionState.accepted_risks.is_empty() or MissionState.mitigated.size() == 3, "riscos aceitos/mitigados definidos no CML 7")
+	var mass_plan: float = MissionState.p("mass")
+	var mult_plan: float = MissionState.p("energy_mult")
+	Voyage.start("Lua")
+	check(is_equal_approx(Voyage.mass, minf(mass_plan, 90.0) if Missions.flags.get("nave_leve", false) else mass_plan), "viagem usa a massa do projeto")
+	check(is_equal_approx(Voyage.energy_mult, mult_plan), "viagem usa o consumo de energia do projeto")
+	# riscos aceitos aumentam o peso do evento correspondente
+	MissionState.accepted_risks = ["thermal"]
+	check(MissionState.event_weights()["reactor"] > MissionState.event_weights()["comm"], "risco termico aceito deixa o reator mais provavel")
+	check(MissionState.cause_for("reactor") != "", "o evento explica a causa (CML 7)")
+	MissionState.accepted_risks = []
+	check(MissionState.cause_for("reactor") == "", "sem risco aceito nao ha causa inventada")
+	# peca reserva reduz o salto de temperatura do reator
+	MissionState.params["parts"] = 1.0
+	GameState.heat = 20.0
+	Voyage.force_event("reactor")
+	var with_part: float = GameState.heat
+	check(MissionState.p("parts") == 0.0, "reparo gastou a peca reserva")
+	GameState.reset()
+	Voyage.start("Lua")
+	GameState.heat = 20.0
+	Voyage.force_event("reactor")
+	check(with_part < GameState.heat, "com peca o salto de temperatura e menor")
+	GameState.reset()
+	# credito insuficiente: opcao cara e trocada por uma barata no modo automatico
+	MissionState.params["credits"] = 3.0
+	check(not MissionState._can_afford({"credits": -10.0}), "nao pode gastar o que nao tem")
+	GameState.reset()
+
+
+func _test_quick_plan_keeps_old_behavior() -> void:
+	section("missao rapida = jogo antigo")
+	GameState.reset()
+	check(is_equal_approx(MissionState.event_chance(), 0.15), "chance de evento padrao 15%")
+	check(is_equal_approx(MissionState.blackout_mult(), 1.0), "blecaute padrao")
+	GameState.running = false
+	Voyage.start("Marte")
+	check(Voyage.mass == 100.0 and Voyage.fuel == 100.0 and is_equal_approx(Voyage.energy_mult, 1.0), "viagem sem planejamento = valores antigos")
+	check(is_equal_approx(Voyage.time_left, Voyage.ROUTES["Marte"]["limit"]), "tempo antigo")
+	GameState.reset()
+
+
+func _test_return_and_report() -> void:
+	section("retorno a Terra gera relatorio com selos e causas")
+	await _plan([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+	GameState.running = false
+	Voyage.start("Lua")
+	Voyage.force_event("reactor")
+	Voyage._reactor_stable()
+	Voyage.force_event("comm")
+	Voyage.blackout_left = 0.0
+	Missions.finished.assign(["bionutrientes", "viagem", "cme"])
+	Missions.start("retorno")
+	check(Missions.is_step("retorno"), "missao de retorno comeca")
+	MissionState.auto_mode = true
+	MissionState.auto_picks = [0, 1]
+	await MissionState.run_return()
+	MissionState.auto_mode = false
+	check(Missions.finished.has("retorno"), "retorno concluido")
+	check(not MissionState.report.is_empty(), "relatorio gerado")
+	var text: String = MissionState.report["text"]
+	check(text.contains("[FICT]") and text.contains("[RISCO]"), "eventos aparecem com selos")
+	check(text.contains("CML 1:") and text.contains("CML 9:"), "relatorio lista as decisoes do planejamento")
+	check(["A", "B", "C", "D", "E"].has(MissionState.report["grade"]), "ha uma nota")
+	check(float(MissionState.report["score"]) >= 0.0 and float(MissionState.report["score"]) <= 100.0, "nota entre 0 e 100")
+	check(FileAccess.file_exists("user://last_report.json"), "relatorio salvo em user://")
+	GameState.reset()
+	check(MissionState.report.is_empty() and not MissionState.planned, "reiniciar limpa o estado da missao")
+
+
+func _test_net_snapshot_has_mission_state() -> void:
+	section("multiplayer: MissionState entra no snapshot")
+	GameState.reset()
+	MissionState.params["credits"] = 77.0
+	MissionState.objective = "bio"
+	MissionState.log_event("reactor", MissionState.TAG_FICT, "x")
+	var snap: Dictionary = Net.snapshot()
+	check(snap.has("MissionState"), "snapshot inclui MissionState")
+	MissionState.reset()
+	Net.apply_snapshot(snap)
+	check(MissionState.p("credits") == 77.0 and MissionState.objective == "bio" and MissionState.log.size() == 1, "espelho recebe o estado da missao")
+	GameState.reset()
+
+
 # ---------------------------------------------------------------- idioma
 func _test_translations() -> void:
 	section("textos dinamicos tem traducao em ingles")
@@ -278,6 +401,9 @@ func _test_translations() -> void:
 	dynamic.append_array(Missions.COLORS_OK)
 	dynamic.append_array(Missions.COLORS_FAIL)
 	dynamic.append_array(Missions.EVENTS)
+	dynamic.append_array(MissionState.TAG_NAMES.values())
+	for r in MissionState.RISKS.values():
+		dynamic.append(r["name"])
 	dynamic.append_array(Voyage.KIND_NAMES.values())
 	dynamic.append_array(Voyage.ROUTES.keys())
 	dynamic.append_array(Voyage.POS_NAMES)

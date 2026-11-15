@@ -37,7 +37,9 @@ const SYNC := {
 	"Voyage": ["active", "route", "travel_time", "time_left", "progress", "energy", "fuel", "mass",
 		"energy_mult", "next_event", "next_in", "event", "blackout_left", "asteroid", "reactor", "base_alert"],
 	"Solar": ["real", "base_flux", "base_angle", "decided", "alert_sent", "countdown", "shield_on",
-		"resolved", "inverted_left", "last_result", "_t"],
+		"resolved", "inverted_left", "last_result", "_t", "source_tag", "source_label"],
+	"MissionState": ["planned", "objective", "cml_done", "params", "decisions", "accepted_risks", "mitigated",
+		"log", "stats", "report"],
 }
 
 ## Chamadas que o cliente (base) pode pedir ao host: autoload -> metodos permitidos.
@@ -339,6 +341,8 @@ func apply_snapshot(snap: Dictionary) -> void:
 		Voyage.changed.emit()
 	if _section(snap, "Solar") != _section(_last_snap, "Solar"):
 		Solar.changed.emit()
+	if _section(snap, "MissionState") != _section(_last_snap, "MissionState"):
+		MissionState.changed.emit()
 	_last_snap = snap
 
 

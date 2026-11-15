@@ -26,6 +26,8 @@ Voyage="*res://scripts/voyage.gd"
 UI="*res://scripts/ui/ui.gd"
 Interactions="*res://scripts/interactions.gd"
 Net="*res://scripts/net.gd"
+MissionState="*res://scripts/mission_state.gd"
+NasaFeed="*res://scripts/nasa_feed.gd"
 
 [display]
 
