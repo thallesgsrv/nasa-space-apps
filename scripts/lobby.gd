@@ -9,7 +9,10 @@ const INK := Color("1b2a5c")
 const LIGHT := Color("dfe9ff")
 const GAME_SCENE := "res://scenes/cutscene_intro.tscn"
 const MENU_SCENE := "res://scenes/start_menu.tscn"
-const PANEL := Rect2(168, 210, 1200, 640)
+const TEX_PANEL := preload("res://assets/ui/panel_menu.png")
+const PANEL_W := 1020.0
+const PAD := 64.0           # folga entre a borda da moldura e o conteudo
+const ROW_H := 58.0
 
 enum S { MAIN, HOSTING, BROWSE, IP, JOINING, WAITING }
 
@@ -19,6 +22,7 @@ var _title: Label
 var _body: Label
 var _rows: Array[Label] = []
 var _cursor: Polygon2D
+var _panel: NinePatchRect
 var _hint: Label
 var _ip_edit: LineEdit
 var _items: Array = []      # [{"label": String, "act": String, "arg": Variant}]
@@ -37,31 +41,27 @@ func _ready() -> void:
 	bg.size = Vector2(1536, 1024)
 	bg.stretch_mode = TextureRect.STRETCH_KEEP
 	add_child(bg)
-	var panel := Panel.new()
-	panel.position = PANEL.position
-	panel.size = PANEL.size
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.09, 0.22, 0.92)
-	sb.border_color = LIGHT
-	sb.set_border_width_all(4)
-	sb.set_corner_radius_all(6)
-	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
-	_title = _label(36, LIGHT, Vector2(PANEL.position.x + 40, PANEL.position.y + 28), Vector2(PANEL.size.x - 80, 48))
-	_body = _label(24, LIGHT, Vector2(PANEL.position.x + 40, PANEL.position.y + 96), Vector2(PANEL.size.x - 80, 200))
+	# moldura NinePatchRect (cantos fixos, miolo estica): a altura se ajusta ao conteudo em _layout()
+	_panel = NinePatchRect.new()
+	_panel.texture = TEX_PANEL
+	for side in ["left", "right", "top", "bottom"]:
+		_panel.set("patch_margin_" + side, 30)
+	add_child(_panel)
+	_title = _label(40, INK, Vector2.ZERO, Vector2(PANEL_W - 2.0 * PAD, 52))
+	_body = _label(24, INK, Vector2.ZERO, Vector2(PANEL_W - 2.0 * PAD, 40))
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body.add_theme_constant_override("line_spacing", 8)
 	for i in 6:
-		_rows.append(_label(30, LIGHT, Vector2(PANEL.position.x + 110, PANEL.position.y + 300 + i * 52), Vector2(PANEL.size.x - 160, 42)))
+		_rows.append(_label(30, INK, Vector2.ZERO, Vector2(PANEL_W - 2.0 * PAD - 60.0, 44)))
 	_cursor = Polygon2D.new()
 	_cursor.polygon = PackedVector2Array([Vector2(0, 0), Vector2(0, 30), Vector2(22, 15)])
-	_cursor.color = LIGHT
+	_cursor.color = INK
 	add_child(_cursor)
 	_hint = _label(24, Color("dfe9ff"), Vector2(0, 962), Vector2(1536, 30))
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_ip_edit = LineEdit.new()
 	_ip_edit.add_theme_font_override("font", FONT)
 	_ip_edit.add_theme_font_size_override("font_size", 30)
-	_ip_edit.position = Vector2(PANEL.position.x + 110, PANEL.position.y + 300)
 	_ip_edit.size = Vector2(520, 56)
 	_ip_edit.placeholder_text = "192.168.0.10"
 	_ip_edit.max_length = 15
@@ -207,7 +207,47 @@ func _render() -> void:
 			_rows[i].text = _items[i]["label"]
 	_cursor.visible = not _items.is_empty()
 	_sel = clampi(_sel, 0, maxi(0, _items.size() - 1))
-	_cursor.position = Vector2(PANEL.position.x + 60, PANEL.position.y + 300 + _sel * 52 + 6)
+	_layout()
+
+
+## Calcula a altura da moldura pelo conteudo (titulo + texto + opcoes) e centraliza na tela.
+func _layout() -> void:
+	var inner_w := PANEL_W - 2.0 * PAD
+	var y := 50.0
+	_title.position = Vector2(PAD, y)
+	y += 52.0 + 18.0
+	var body_h := 0.0
+	if _body.text != "":
+		var sz := FONT.get_multiline_string_size(_body.text, HORIZONTAL_ALIGNMENT_LEFT, inner_w, 24)
+		body_h = sz.y + float(_body.text.count("
+") + 1) * 4.0 + 8.0
+		_body.visible = true
+		_body.position = Vector2(PAD, y)
+		_body.size = Vector2(inner_w, body_h)
+		y += body_h + 44.0
+	else:
+		_body.visible = false
+	var rows_top := y
+	for i in _items.size():
+		_rows[i].position = Vector2(PAD + 60.0, rows_top + float(i) * ROW_H)
+	if _ip_edit.visible:
+		y += 70.0
+	else:
+		y += float(_items.size()) * ROW_H
+	# a moldura cobre a caixa desenhada no fundo (start_bg.png, x 80-760, y 330-665): altura minima 380
+	var h := maxf(y + 44.0, 380.0)
+	var top := minf(clampf((1024.0 - h) / 2.0 - 20.0, 60.0, 400.0), 300.0)
+	_panel.size = Vector2(PANEL_W, h)
+	_panel.position = Vector2(60.0, top)
+	# os rotulos sao filhos da cena (nao da moldura): converte para coordenadas da tela
+	_title.position += _panel.position
+	if _body.visible:
+		_body.position += _panel.position
+	for i in _items.size():
+		_rows[i].position += _panel.position
+	_cursor.position = Vector2(_panel.position.x + PAD + 10.0, _panel.position.y + rows_top + float(_sel) * ROW_H + 8.0)
+	if _ip_edit.visible:
+		_ip_edit.position = Vector2(_panel.position.x + PAD + 10.0, _panel.position.y + rows_top)
 
 
 # ---------------------------------------------------------------- eventos
