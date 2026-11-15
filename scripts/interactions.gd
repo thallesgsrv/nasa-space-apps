@@ -354,6 +354,15 @@ func _assento(source: Node, player: Node) -> void:
 		return
 	var stand_pos: Vector2 = player.global_position
 	player.sit(seat.global_position)
+	await _mission_console()
+	player.stand(stand_pos)
+
+
+func _name_of(table: Dictionary, id: String) -> String:
+	return table[id]["name"] if id != "" else "—"
+
+
+func _mission_console() -> void:
 	while true:
 		var title := ""
 		var opts: Array = []
