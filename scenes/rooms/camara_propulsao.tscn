@@ -93,10 +93,6 @@ shape = SubResource("s7")
 position = Vector2(202.5, 762.5)
 shape = SubResource("s8")
 
-[node name="GradeEscada" type="CollisionShape2D" parent="Colisoes" unique_id=708451300]
-position = Vector2(296, 640)
-shape = SubResource("s9")
-
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Colisoes" unique_id=202620939]
 position = Vector2(414.875, 638.7251)
 shape = SubResource("RectangleShape2D_xv3bb")

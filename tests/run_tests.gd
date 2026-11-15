@@ -730,7 +730,7 @@ func _test_ghost_animation() -> void:
 	sg.set_target(Vector2(-300, 0))
 	await get_tree().process_frame
 	await get_tree().process_frame
-	check(sg._still.texture == sg.SCIENTIST_TEX["side"] and sg._still.flip_h, "cientista vira para o lado e espelha")
+	check(sg.current_animation() == "run_side" and sg._anim.flip_h, "cientista (animado) corre para o lado e espelha")
 	root.queue_free()
 	await get_tree().process_frame
 

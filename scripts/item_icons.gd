@@ -10,6 +10,8 @@ const PATHS := {
 	"bolacha": ["res://assets/items/bolacha.png"],
 	"refri": ["res://assets/items/refri.png"],
 	"amostra": ["res://assets/items/amostra.png"],
+	"agua": ["res://assets/items/agua.png"],
+	"racao": ["res://assets/items/racao.png"],
 	"pacote_fungos": ["res://assets/items/pacote_fungos.png"],
 	"pacote_quente": ["res://assets/items/pacote_quente.png"],
 }

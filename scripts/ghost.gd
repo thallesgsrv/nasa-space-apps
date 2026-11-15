@@ -5,6 +5,7 @@ extends Node2D
 
 const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
 const BASE_FRAMES := preload("res://assets/player/player_frames.tres")
+const SCIENTIST_FRAMES := preload("res://assets/scientist/scientist_frames.tres")
 const TEX_ASTRONAUT := preload("res://assets/player/player_down.png")
 const SCIENTIST_TEX := {
 	"up": preload("res://assets/scientist/scientist_up.png"),
@@ -26,7 +27,6 @@ const FEET_Y := -11.0
 var peer_id := 0
 var role := 0
 var _anim: AnimatedSprite2D     # astronautas
-var _still: Sprite2D            # cientista (imagens fixas)
 var _label: Label
 var _target := Vector2.ZERO
 var _placed := false
@@ -42,18 +42,17 @@ func setup(id: int, player_role: int, display_name: String) -> void:
 	peer_id = id
 	role = player_role
 	z_index = 50
+	_anim = AnimatedSprite2D.new()
+	_anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if role == Net.Role.SCIENTIST:
-		_still = Sprite2D.new()
-		_still.scale = Vector2(0.5, 0.5)
-		_still.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		add_child(_still)
+		_anim.sprite_frames = SCIENTIST_FRAMES
+		_anim.scale = Vector2(1.45, 1.45)         # mesmos valores do cientista em scientist.tscn
+		_anim.offset = Vector2(0, -42)
 	else:
-		_anim = AnimatedSprite2D.new()
 		_anim.sprite_frames = frames_for(role) if SUIT.has(role) else BASE_FRAMES
 		_anim.scale = Vector2(3.5, 3.5)           # mesmos valores do astronauta em player.tscn
 		_anim.offset = Vector2(1.5, -18)
-		_anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		add_child(_anim)
+	add_child(_anim)
 	_body = StaticBody2D.new()
 	_body.name = "Hitbox"
 	_shape = CollisionShape2D.new()
@@ -137,11 +136,7 @@ func _refresh_visual() -> void:
 		_anim.flip_h = _left and _facing == "side"
 		if _anim.animation != anim or not _anim.is_playing():
 			_anim.play(anim)
-	elif _still != null:
-		var tex: Texture2D = SCIENTIST_TEX[_facing]
-		_still.texture = tex
-		_still.flip_h = _left and _facing == "side"      # a imagem lateral do cientista olha para a direita
-		_still.offset = Vector2(0, -tex.get_height() / 2.0)   # origem = pes
+
 
 
 ## Imagem parada (de frente) do astronauta na cor do papel.

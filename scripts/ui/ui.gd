@@ -646,14 +646,23 @@ func _make_bar(pos: Vector2, size: Vector2, icon: String, color: Color) -> Color
 	box.position = pos
 	box.size = size
 	_hud.add_child(box)
-	# icone no lugar do texto (assets/ui/icon_<nome>.png)
-	var ic := TextureRect.new()
-	ic.texture = load("res://assets/ui/icon_%s.png" % icon)
-	ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	ic.stretch_mode = TextureRect.STRETCH_KEEP
-	ic.position = Vector2(16, 4)
-	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(ic)
+	# icone no lugar do texto (assets/ui/icon_<nome>.png); a vida e um monitor de batimentos animado
+	if icon == "vida":
+		var ecg := AnimatedSprite2D.new()
+		ecg.sprite_frames = load("res://assets/ui/vida_frames.tres")
+		ecg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		ecg.scale = Vector2(3, 3)
+		ecg.position = Vector2(44, 32)
+		ecg.play("default")
+		box.add_child(ecg)
+	else:
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/ui/icon_%s.png" % icon)
+		ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		ic.stretch_mode = TextureRect.STRETCH_KEEP
+		ic.position = Vector2(16, 4)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(ic)
 	var bg := ColorRect.new()
 	bg.color = Color(INK, 0.35)
 	bg.position = Vector2(size.x - BAR_W - 28, 22)
@@ -923,11 +932,12 @@ func _build_tracker() -> void:
 	_tracker_icon.gui_input.connect(_on_tracker_icon_input)
 	add_child(_tracker_icon)
 	_tracker_mark = TextureRect.new()
-	_tracker_mark.texture = preload("res://assets/ui/alerta.png")
+	_tracker_mark.texture = preload("res://assets/ui/bandeira.png")   # bandeira do objetivo (pixel art 24x46, mostrada em 2x)
 	_tracker_mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_tracker_mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_tracker_mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_tracker_mark.size = Vector2(70, 70)
+	_tracker_mark.stretch_mode = TextureRect.STRETCH_KEEP
+	_tracker_mark.size = Vector2(24, 46)
+	_tracker_mark.scale = Vector2(2, 2)
+	_tracker_mark.pivot_offset = Vector2.ZERO
 	_tracker_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tracker_icon.add_child(_tracker_mark)
 
@@ -1074,7 +1084,7 @@ func _process(delta: float) -> void:
 		if _tracker_open_left <= 0.0:
 			_update_tracker_visibility()
 	if _tracker_icon.visible:
-		_tracker_mark.position.y = 8.0 + sin(_ui_t * 3.0) * 6.0   # sobe e desce devagar
+		_tracker_mark.position = Vector2(11.0, 4.0 + sin(_ui_t * 3.0) * 6.0)   # sobe e desce devagar
 	_flicker.color.a = (0.2 if int(_ui_t * 10.0) % 2 == 0 else 0.0) if Solar.inverted_left > 0.0 else 0.0
 	if _panel_active and _panel_provider.is_valid():
 		_panel_refresh += delta
