@@ -26,7 +26,7 @@ func setup(radar_scale: float) -> void:
 	add_child(_sweep)
 	_blip = AnimatedSprite2D.new()
 	_blip.sprite_frames = load("res://assets/ui/radar_blip_frames.tres")
-	_blip.scale = Vector2.ONE * radar_scale * 0.25
+	_blip.scale = Vector2.ONE * radar_scale * 0.4
 	_blip.visible = false
 	add_child(_blip)
 	set_state(false, -1.0, 0.0)
