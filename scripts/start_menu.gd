@@ -9,7 +9,9 @@ const GAME_SCENE := "res://scenes/cutscene_intro.tscn"   # cutscene inicial; dep
 
 # interior da caixa de texto desenhada no start_bg.png (x, y, largura, altura)
 const BOX := Rect2(113, 362, 610, 276)
-const OPTIONS := ["INICIAR", "OPÇÕES"]
+const OPTIONS := ["INICIAR", "MULTIPLAYER LAN", "OPÇÕES"]
+const LOBBY_SCENE := "res://scenes/lobby.tscn"
+const SPACING := 76.0   # distancia entre as opcoes (cabem 3 na caixa do menu)
 
 var _sel := 0
 var _labels: Array[Label] = []
@@ -36,7 +38,7 @@ func _ready() -> void:
 		lab.add_theme_font_override("font", FONT)
 		lab.add_theme_font_size_override("font_size", 48)
 		lab.add_theme_color_override("font_color", INK)
-		lab.position = Vector2(BOX.position.x + 130.0, BOX.position.y + 44.0 + i * 96.0)
+		lab.position = Vector2(BOX.position.x + 130.0, BOX.position.y + 44.0 + i * SPACING)
 		add_child(lab)
 	_cursor = Polygon2D.new()
 	_cursor.polygon = PackedVector2Array([Vector2(0, 0), Vector2(0, 40), Vector2(30, 20)])
@@ -56,7 +58,7 @@ func _ready() -> void:
 
 
 func _place_cursor() -> void:
-	_cursor.position = Vector2(BOX.position.x + 62.0, BOX.position.y + 46.0 + _sel * 96.0 + 4.0)
+	_cursor.position = Vector2(BOX.position.x + 62.0, BOX.position.y + 46.0 + _sel * SPACING + 4.0)
 
 
 # _unhandled_input: se um dialogo estiver aberto, a UI ja consumiu a tecla antes.
@@ -75,6 +77,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		Audio.sfx("select", 1.35, 0.5)
 		if _sel == 0:
 			_start_game()
+		elif _sel == 1:
+			_open_lobby()
 		else:
 			_options()
 
@@ -89,6 +93,12 @@ func _options() -> void:
 	for k in _labels.size():
 		_labels[k].text = tr(OPTIONS[k])
 	_hint.text = tr("W / S: escolher     F ou Enter: confirmar")
+
+
+func _open_lobby() -> void:
+	_starting = true
+	await UI.fade_to(1.0, 0.3)
+	get_tree().change_scene_to_file(LOBBY_SCENE)
 
 
 func _start_game() -> void:

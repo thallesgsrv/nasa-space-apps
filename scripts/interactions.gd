@@ -59,7 +59,7 @@ func show_tutorial() -> void:
 		tr("Use W A S D (ou as setas) para andar."),
 		tr("Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar."),
 		tr("Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus."),
-		tr("Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra)."),
+		tr("Você é o astronauta; seu parceiro é a base na Terra (cientista). A base prevê os perigos e dá o veredito das análises: conversem!") if Net.has_partner() else tr("Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra)."),
 		tr("Aperte M (ou J) para ver as missões. O objetivo atual aparece no canto da tela por um tempo; depois fica só um \"!\" (clique nele ou aperte V para ver de novo)."),
 		tr("Fique de olho nas barras de comida, sono e água lá embaixo!"),
 	])
@@ -67,6 +67,9 @@ func show_tutorial() -> void:
 
 # ============================ inventario ============================
 func open_inventory() -> void:
+	if Net.is_client():   # multiplayer: a mochila e as necessidades sao do astronauta (host)
+		await UI.say(tr("A mochila é do astronauta. Você acompanha o estado dele pelas barras da tela."))
+		return
 	var g = UI.open_grid("inventory")
 	g.desc_provider = _inventory_text
 	while true:
@@ -485,7 +488,7 @@ func _painel_base() -> void:
 	await UI.say([tr("Coloração observada: %s.") % Missions.color_name().to_upper(), table])
 	var i := await UI.choose([tr("Indicar SUCESSO"), tr("Indicar FALHA"), tr("Cancelar")], tr("Veredito da base"))
 	if i == 0 or i == 1:
-		await UI.say(Missions.verdict(i == 0))
+		await UI.say(await Missions.verdict(i == 0))
 
 
 # ============================ dormitorio: checkup ============================
@@ -557,8 +560,8 @@ func _enviar_alerta() -> void:
 			labels.append(tr("Impacto em %d s") % int(v))
 		var k := await UI.choose(labels, tr("Quando ele atinge a nave?"))
 		if k >= 0:
-			Voyage.set_estimate(int(vals[k]))
-	await UI.say(Voyage.send_alert())
+			await Voyage.set_estimate(int(vals[k]))
+	await UI.say(await Voyage.send_alert())
 
 
 # Valvulas do reator (astronauta): girar uma valvula gira tambem as vizinhas. O tempo corre durante o minigame.
@@ -589,7 +592,7 @@ func _terminal_solar() -> void:
 		await UI.show_panel("", Callable(Solar, "terminal_text"))
 		var i := await UI.choose([tr("Enviar alerta de abrigo"), tr("Ignorar (falso alarme)"), tr("Ver o terminal de novo")], tr("Decisão da base"))
 		if i == 0 or i == 1:
-			await UI.say(Solar.decide(i == 0))
+			await UI.say(await Solar.decide(i == 0))
 			return
 		if i < 0:
 			return
