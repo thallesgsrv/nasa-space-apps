@@ -113,16 +113,6 @@ place_name = "Cafeteria"
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria" unique_id=1444277982]
 shape = SubResource("s10")
 
-[node name="Porta_sala_reator" type="Area2D" parent="Portas" unique_id=1874364136]
-position = Vector2(106.5, 557.5)
-script = ExtResource("2_door")
-target_room = "res://scenes/rooms/sala_reator.tscn"
-target_spawn = "from_camara_propulsao"
-place_name = "Sala do reator"
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_sala_reator" unique_id=1936279064]
-shape = SubResource("s11")
-
 [node name="Interativos" type="Node2D" parent="." unique_id=1214930121]
 
 [node name="Propulsor" type="Area2D" parent="Interativos" unique_id=1252091831]
@@ -138,6 +128,3 @@ shape = SubResource("s12")
 
 [node name="from_cafeteria" type="Marker2D" parent="Spawns" unique_id=1212501731]
 position = Vector2(700, 810)
-
-[node name="from_sala_reator" type="Marker2D" parent="Spawns" unique_id=770687591]
-position = Vector2(175, 565)
