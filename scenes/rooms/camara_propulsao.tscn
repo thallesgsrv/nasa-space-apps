@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://bpt0vrv4fxpeb"]
+[gd_scene format=3 uid="uid://gtemhw4dmkfn"]
 
 [ext_resource type="Script" uid="uid://uevjtx6koa1r" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" uid="uid://bpwndl0ga1by5" path="res://scripts/door.gd" id="2_door"]
@@ -32,17 +32,8 @@ size = Vector2(62, 94)
 [sub_resource type="RectangleShape2D" id="s8"]
 size = Vector2(195, 285)
 
-[sub_resource type="RectangleShape2D" id="s9"]
-size = Vector2(68, 210)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_xv3bb"]
-size = Vector2(21.74997, 207.45026)
-
 [sub_resource type="RectangleShape2D" id="s10"]
 size = Vector2(240, 45)
-
-[sub_resource type="RectangleShape2D" id="s11"]
-size = Vector2(43, 105)
 
 [sub_resource type="RectangleShape2D" id="s12"]
 size = Vector2(95, 168)
@@ -92,10 +83,6 @@ shape = SubResource("s7")
 [node name="CaixasEsq" type="CollisionShape2D" parent="Colisoes" unique_id=1128311236]
 position = Vector2(202.5, 762.5)
 shape = SubResource("s8")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Colisoes" unique_id=202620939]
-position = Vector2(414.875, 638.7251)
-shape = SubResource("RectangleShape2D_xv3bb")
 
 [node name="Portas" type="Node2D" parent="." unique_id=1568079239]
 
