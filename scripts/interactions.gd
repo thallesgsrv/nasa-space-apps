@@ -4,7 +4,7 @@ extends Node
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
 const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de controle)
-const PLANET_TRANSITION := "res://assets/Viideos/trasiicao.ogv"  # cutscene de troca de planeta
+const PLANET_TRANSITION := "res://assets/videos/transicao.ogv"  # cutscene de troca de planeta
 
 func run(action: String, source: Node, player: Node) -> void:
 	match action:
@@ -120,15 +120,6 @@ func _effects_text(effects: Dictionary) -> String:
 	for key in effects:
 		parts.append("%s %+d" % [names.get(key, key), int(effects[key])])
 	return ", ".join(parts) + "."
-
-
-func _choose_or_cancel(options: Array, title: String) -> int:
-	if options.is_empty():
-		return -1
-	var idx := await UI.choose(options, title)
-	if idx < 0:
-		return idx
-	return idx
 
 
 # ============================ cafeteria ============================
@@ -320,24 +311,29 @@ func _nucleo() -> void:
 		var title := tr("Núcleo %d%%") % int(round(GameState.heat))
 		if GameState.meltdown_left >= 0.0:
 			title += tr("  EXPLODE EM %d s") % ceili(GameState.meltdown_left)
-		var opts: Array = [tr("Resfriar núcleo"), tr("Ver temperatura"), tr("Fechar")]
+		var opts: Array = [tr("Resfriar núcleo"), tr("Ver temperatura")]
+		var acts: Array = ["resfriar", "temperatura"]
 		if Voyage.event == "reactor":
-			opts.insert(2, tr("Ajustar válvulas (URGENTE)"))
+			opts.append(tr("Ajustar válvulas (URGENTE)"))
+			acts.append("valvulas")
+		opts.append(tr("Fechar"))
+		acts.append("fechar")
 		var i := await UI.choose(opts, title)
-		if opts[maxi(i, 0)] == tr("Ajustar válvulas (URGENTE)") and i >= 0:
-			await _valvulas()
-		elif i == 0:
-			GameState.cool_core(50.0)
-			await UI.say(tr("Sistema de resfriamento ativado. Núcleo em %d%%.") % int(round(GameState.heat)))
-		elif i == 1:
-			var state := tr("estável")
-			if GameState.heat >= GameState.HEAT_WARNING:
-				state = tr("PERIGOSO")
-			elif GameState.heat >= 60.0:
-				state = tr("quente")
-			await UI.say(tr("Temperatura do núcleo: %d%% (%s).") % [int(round(GameState.heat)), state])
-		else:
+		if i < 0 or acts[i] == "fechar":
 			return
+		match String(acts[i]):
+			"resfriar":
+				GameState.cool_core(50.0)
+				await UI.say(tr("Sistema de resfriamento ativado. Núcleo em %d%%.") % int(round(GameState.heat)))
+			"temperatura":
+				var state := tr("estável")
+				if GameState.heat >= GameState.HEAT_WARNING:
+					state = tr("PERIGOSO")
+				elif GameState.heat >= 60.0:
+					state = tr("quente")
+				await UI.say(tr("Temperatura do núcleo: %d%% (%s).") % [int(round(GameState.heat)), state])
+			"valvulas":
+				await _valvulas()
 
 
 func _botiquim() -> void:
@@ -360,10 +356,6 @@ func _assento(source: Node, player: Node) -> void:
 	player.sit(seat.global_position)
 	await _mission_console()
 	player.stand(stand_pos)
-
-
-func _name_of(table: Dictionary, id: String) -> String:
-	return table[id]["name"] if id != "" else "—"
 
 
 func _mission_console() -> void:
@@ -411,8 +403,6 @@ func _mission_console() -> void:
 			var r2 := a.substr(7)
 			GameState.route = r2
 			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
-	player.stand(stand_pos)
-
 
 
 # ============================ missoes ============================

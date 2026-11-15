@@ -21,12 +21,10 @@ Lang="*res://scripts/lang.gd"
 Audio="*res://scripts/audio.gd"
 GameState="*res://scripts/game_state.gd"
 Missions="*res://scripts/missions.gd"
-Voyage="*res://scripts/voyage.gd"
 Solar="*res://scripts/solar.gd"
 Voyage="*res://scripts/voyage.gd"
 UI="*res://scripts/ui/ui.gd"
 Interactions="*res://scripts/interactions.gd"
-Mission="*res://scripts/mission.gd"
 
 [display]
 

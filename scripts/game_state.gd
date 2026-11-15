@@ -5,7 +5,7 @@ extends Node
 
 signal changed            # necessidades / vida / nucleo mudaram
 signal inventory_changed  # inventario, armario ou capsula mudaram
-signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel): game over
+signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel, vida zerada): game over
 signal exploded                # o nucleo ficou 12 s em 100% sem resfriar
 signal notice(text: String)  # aviso curto para a interface mostrar
 
@@ -82,8 +82,12 @@ func reset() -> void:
 	conditions.clear()
 	tutorial_done = false
 	_heat_warned = false
-	_emit_state_change()
-	_emit_inventory_change()
+	Missions.reset()
+	Voyage.reset()
+	Solar.reset()
+	UI.reset()
+	changed.emit()
+	inventory_changed.emit()
 
 
 func _process(delta: float) -> void:
@@ -105,6 +109,11 @@ func _process(delta: float) -> void:
 		if v <= 0.0:
 			damage += STARVE_DAMAGE
 	health = clampf(health - damage * delta, 0.0, 100.0)
+	if health <= 0.0:
+		running = false
+		changed.emit()
+		failed.emit(tr("Seu corpo não aguentou: fome, sede ou cansaço demais."))
+		return
 	if heat >= 100.0:
 		if meltdown_left < 0.0:
 			meltdown_left = MELTDOWN_TIME
@@ -142,7 +151,9 @@ func use_item(id: String) -> void:
 
 func cool_core(amount: float) -> void:
 	heat = maxf(0.0, heat - amount)
-	_emit_state_change()
+	if heat < 100.0:
+		meltdown_left = -1.0
+	changed.emit()
 
 
 func heal(amount: float) -> void:
@@ -254,12 +265,8 @@ func _capsule_arrived() -> void:
 	capsule_ready = capsule_item
 	capsule_item = ""
 	capsule_left = 0.0
-	if add_item(id):
-		notice.emit("A cápsula voltou da Terra: %s" % item_name(id))
-	else:
-		capsule_ready = id
-		notice.emit("A cápsula voltou, mas a mochila está cheia!")
-	_emit_inventory_change()
+	notice.emit(tr("Chegou da Terra: %s. Retire na cápsula (armazém).") % item_name(capsule_ready))
+	inventory_changed.emit()
 
 
 func collect_capsule() -> bool:

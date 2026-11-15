@@ -1,21 +1,42 @@
-# Space Mission Design Game (NASA Space Apps 2026)
+# Nasa Space Apps 2026 — Jogo de sobrevivência e missões espaciais
 
-Jogo em Godot 4 onde você projeta, valida e simula uma missão espacial.
-Ande pela estação e sente na **sala de controle** para abrir o console de missão.
-
-## Fluxo
-1. **Objetivo científico** (define requisito de dados/dia e vida útil)
-2. **Instrumentos** (massa, energia, dados, custo, confiabilidade)
-3. **Energia** (painel solar), **Lançador**, **Órbita** e **Estação terrestre**
-4. **Revisar projeto**: bloqueios (massa > lançador, custo > orçamento...) e avisos (energia, comunicação, órbita)
-5. **Lançar missão**: simulação mensal com falhas e tempestades; relatório explica sucesso ou falha
-
-As relações: massa×lançador×órbita, energia×eclipse×instrumentos, dados×downlink, custo×orçamento (por dificuldade), confiabilidade×vida útil.
-
-**Todos os números são fictícios** (`scripts/mission.gd`). O sistema de sobrevivência da estação (comida, sono, reator) segue como camada de ambientação.
+Jogo 2D em **Godot 4.6** (GDScript). Você controla um astronauta numa estação/nave e, ao apertar **1**,
+o cientista da base na Terra. Os dois lados precisam cooperar para completar as missões.
 
 ## Controles
-WASD/setas andam, F interage, I mochila, 1 alterna astronauta/cientista.
+| Tecla | Ação |
+|---|---|
+| WASD / setas | andar |
+| F / Enter / Espaço | interagir / confirmar |
+| I / Tab | mochila |
+| M / J | menu de missões |
+| V | rever o objetivo atual |
+| 1 | alternar astronauta (estação) ↔ cientista (Terra) |
+| Esc | cancelar / fechar |
 
-## Referências
-Paper CML (JPL) e webinar NASA "Design and Develop Science Missions": segmentos, requisitos, trade space, margens, riscos.
+## Missões
+1. **Bionutrientes** — pegar a cultura de fungos, aquecer, centrifugar e enviar pela cápsula; a base analisa a placa de Petri e dá o veredito.
+2. **Viagem** — escolher a rota na cadeira de comando. A base prevê perigos (comunicação, asteroide, reator); o astronauta faz as manobras.
+3. **CME (tempestade solar)** — a base decide alertar ou ignorar; o astronauta ativa os escudos a tempo.
+
+Em paralelo há a camada de sobrevivência: comida, água, sono, vida e temperatura do núcleo do reator.
+Game over: núcleo a 100% por 12 s, falha da viagem (energia, combustível, tempo, colisão) ou vida zerada.
+
+## Estrutura
+- `scripts/game_state.gd` (autoload `GameState`): necessidades, inventário, cápsula, entrada.
+- `scripts/missions.gd` (`Missions`), `scripts/voyage.gd` (`Voyage`), `scripts/solar.gd` (`Solar`): regras das missões.
+- `scripts/interactions.gd` (`Interactions`): o que cada objeto interativo faz (`action` do `interactable.gd`).
+- `scripts/ui/ui.gd` (`UI`): HUD, diálogos, menus e telas por cima do jogo; minigames em `scripts/ui/`.
+- `scripts/lang.gd` (`Lang`): português (padrão) e inglês. Textos ficam em `tr("português")`; a tabela `EN` traduz.
+- `scripts/audio.gd` (`Audio`): música por sala e efeitos. Salas sem arquivo em `assets/audio/music/` ficam em silêncio.
+- `scenes/`: menu, cutscene, jogo e as salas (`rooms/`, `baseterrestre/`).
+
+## Testes
+Testes automatizados headless (regras das missões, viagem, reinício, game over, todas as salas, objetos e minigames):
+
+```
+godot --headless res://tests/run_tests.tscn
+```
+
+Saída `N verificacoes, 0 falhas` e código de saída 0 quando tudo passa. Use Godot 4.6.
+Na primeira vez (ou após adicionar assets) rode `godot --headless --import`.

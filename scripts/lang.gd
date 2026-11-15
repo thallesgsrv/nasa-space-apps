@@ -34,6 +34,7 @@ const EN := {
 	"BOOM!": "BOOM!",
 	"O núcleo do reator superaqueceu e a nave explodiu.": "The reactor core overheated and the ship exploded.",
 	"Fim de jogo.": "Game over.",
+	"Seu corpo não aguentou: fome, sede ou cansaço demais.": "Your body gave out: too hungry, thirsty or tired.",
 	"Recomeçar": "Restart",
 	"Menu inicial": "Main menu",
 	"Game over": "Game over",
