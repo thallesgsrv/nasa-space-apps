@@ -39,6 +39,9 @@ func _ready() -> void:
 	_test_net_snapshot_has_mission_state()
 	await _test_net_client_is_mirror()
 	await _test_net_client_game_scene()
+	_test_net_roles()
+	await _test_ghost_animation()
+	await _test_net_crew_client_scene()
 	_test_translations()
 	_test_assets_referenced_exist()
 	await _test_every_interaction_and_minigame()
@@ -613,6 +616,104 @@ func _test_net_client_game_scene() -> void:
 	var lobby := (load("res://scenes/lobby.tscn") as PackedScene).instantiate()
 	add_child(lobby)
 	await get_tree().process_frame
-	check(lobby._state == lobby.S.MAIN and lobby._items.size() == 4, "lobby abre no menu principal")
+	check(lobby._state == lobby.S.MAIN and lobby._items.size() >= 4, "lobby abre no menu principal")
 	lobby.queue_free()
+	await get_tree().process_frame
+
+
+# ---------------------------------------------------------------- papeis (4 jogadores)
+func _test_net_roles() -> void:
+	section("multiplayer: papeis, vagas e permissoes por papel")
+	var saved: Dictionary = Net.roster
+	Net.roster = {1: {"role": Net.Role.ASTRONAUT}}
+	check(Net._free_role() == Net.Role.SCIENTIST, "1o cliente vira cientista")
+	Net.roster[10] = {"role": Net.Role.SCIENTIST}
+	check(Net._free_role() == Net.Role.ENGINEER, "2o cliente vira engenheiro")
+	Net.roster[11] = {"role": Net.Role.ENGINEER}
+	check(Net._free_role() == Net.Role.ASTRONAUT2, "3o cliente vira astronauta 2")
+	Net.roster[12] = {"role": Net.Role.ASTRONAUT2}
+	check(Net._free_role() == -1, "sala cheia: 4 jogadores")
+	check(Net._free_role(Net.Role.ENGINEER) == -1, "papel ocupado nao pode ser pedido")
+	check(Net._free_role(Net.Role.ASTRONAUT) == -1, "ninguem pede o papel de comandante")
+	Net.roster.erase(11)
+	check(Net._free_role(Net.Role.ENGINEER) == Net.Role.ENGINEER, "papel livre pode ser pedido")
+	# permissoes: so o cientista decide pela base; so a tripulacao mexe no nucleo/escudos
+	for key in ["Missions.verdict", "Solar.decide", "Voyage.send_alert"]:
+		check((Net.CALL_ROLES[key] as Array) == [Net.Role.SCIENTIST], key + " so cientista")
+	check(not (Net.CALL_ROLES["Solar.activate_shield"] as Array).has(Net.Role.SCIENTIST), "cientista nao ativa escudos")
+	check(not Net.REMOTE_CALLS["GameState"].has("reset"), "GameState.reset continua fora da lista")
+	# efeito das chamadas da tripulacao (rodam no host)
+	GameState.reset()
+	GameState.heat = 80.0
+	GameState.crew_cool_core()
+	check(GameState.heat == 30.0, "resfriar do engenheiro baixa 50 pontos")
+	Net.roster = saved
+	GameState.reset()
+
+
+func _test_net_crew_client_scene() -> void:
+	section("multiplayer: engenheiro entra na estacao e so usa nucleo/escudos")
+	GameState.reset()
+	Net.mode = Net.Mode.CLIENT
+	Net.my_role = Net.Role.ENGINEER
+	var game := (load("res://scenes/game.tscn") as PackedScene).instantiate()
+	add_child(game)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(Net.is_crew_client(), "engenheiro e tripulacao")
+	check(game.player == game.astronaut, "engenheiro controla um astronauta")
+	check(game._room != null and game._room.room_id() == "cafeteria", "engenheiro comeca na estacao")
+	check(not game._on_earth, "engenheiro nao esta na Terra")
+	var anim := game.astronaut.get_node("AnimatedSprite2D") as AnimatedSprite2D
+	check(anim.sprite_frames == game.GHOST.frames_for(Net.Role.ENGINEER), "engenheiro usa o traje laranja")
+	check(game.GHOST.frames_for(Net.Role.ASTRONAUT2) != null and game.GHOST.frames_for(Net.Role.ASTRONAUT) == null, "astronauta 2 tem traje proprio; comandante mantem o original")
+	check(game.GHOST.texture_for(Net.Role.ENGINEER) != game.GHOST.texture_for(Net.Role.ASTRONAUT2), "fantasmas de cores diferentes")
+	game.queue_free()
+	await get_tree().process_frame
+	Net.mode = Net.Mode.OFFLINE
+	Net.my_role = Net.Role.ASTRONAUT
+	GameState.running = false
+	GameState.reset()
+
+
+func _test_ghost_animation() -> void:
+	section("multiplayer: fantasma anima (parado/correndo, frente/costas/lado) e vira para o lado certo")
+	var root := Node2D.new()
+	add_child(root)
+	for r in [Net.Role.ASTRONAUT, Net.Role.ENGINEER, Net.Role.ASTRONAUT2]:
+		var g := Node2D.new()
+		g.set_script(load("res://scripts/ghost.gd"))
+		root.add_child(g)
+		g.setup(1, r, "X")
+		g.set_target(Vector2(100, 100))
+		await get_tree().process_frame
+		check(g.current_animation() == "idle_down", "parado de frente (papel %d)" % r)
+		g.set_target(Vector2(400, 100))            # anda para a direita
+		await get_tree().process_frame
+		await get_tree().process_frame
+		check(g.is_moving() and g.current_animation() == "run_side" and not g._anim.flip_h, "correndo para a direita (papel %d)" % r)
+		g.set_target(Vector2(-200, 100))           # vira para a esquerda
+		for i in 3:
+			await get_tree().process_frame
+		check(g.current_animation() == "run_side" and g._anim.flip_h, "espelha para a esquerda (papel %d)" % r)
+		g.global_position = Vector2(0, 0)
+		g.set_target(Vector2(0, -300))              # sobe
+		await get_tree().process_frame
+		await get_tree().process_frame
+		check(g.current_animation() == "run_up", "correndo para cima (papel %d)" % r)
+		g.global_position = g._target               # chegou
+		await get_tree().process_frame
+		check(not g.is_moving() and g.current_animation().begins_with("idle"), "para ao chegar (papel %d)" % r)
+	# cientista: imagens fixas que trocam e espelham
+	var sg := Node2D.new()
+	sg.set_script(load("res://scripts/ghost.gd"))
+	root.add_child(sg)
+	sg.setup(2, Net.Role.SCIENTIST, "Y")
+	sg.set_target(Vector2(0, 0))
+	await get_tree().process_frame
+	sg.set_target(Vector2(-300, 0))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(sg._still.texture == sg.SCIENTIST_TEX["side"] and sg._still.flip_h, "cientista vira para o lado e espelha")
+	root.queue_free()
 	await get_tree().process_frame

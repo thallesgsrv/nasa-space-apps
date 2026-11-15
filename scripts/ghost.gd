@@ -1,0 +1,121 @@
+extends Node2D
+## Fantasma de outro jogador (multiplayer): boneco animado + nome, so aparece na mesma sala que voce.
+## A posicao vem de Net.roster (replicada ~12x/s); aqui suavizamos o movimento e escolhemos a animacao
+## (parado / correndo, de frente / costas / lado) a partir do deslocamento, igual ao player.gd.
+
+const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
+const BASE_FRAMES := preload("res://assets/player/player_frames.tres")
+const TEX_ASTRONAUT := preload("res://assets/player/player_down.png")
+const SCIENTIST_TEX := {
+	"up": preload("res://assets/scientist/scientist_up.png"),
+	"down": preload("res://assets/scientist/scientist_down.png"),
+	"side": preload("res://assets/scientist/scientist_side.png"),
+}
+## Astronautas de cores diferentes: azul (comandante, original), laranja (engenheiro) e verde (astronauta 2).
+const SUIT := {
+	Net.Role.ENGINEER: "laranja",
+	Net.Role.ASTRONAUT2: "verde",
+}
+const MOVE_THRESHOLD := 6.0     # px de distancia ate o alvo para contar como "correndo"
+const FOLLOW := 14.0            # suavizacao da posicao
+
+var peer_id := 0
+var role := 0
+var _anim: AnimatedSprite2D     # astronautas
+var _still: Sprite2D            # cientista (imagens fixas)
+var _label: Label
+var _target := Vector2.ZERO
+var _placed := false
+var _facing := "down"
+var _left := false              # olhando para a esquerda (so vale em "side")
+var _moving := false
+
+
+func setup(id: int, player_role: int, display_name: String) -> void:
+	peer_id = id
+	role = player_role
+	z_index = 50
+	if role == Net.Role.SCIENTIST:
+		_still = Sprite2D.new()
+		_still.scale = Vector2(0.5, 0.5)
+		_still.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(_still)
+	else:
+		_anim = AnimatedSprite2D.new()
+		_anim.sprite_frames = frames_for(role) if SUIT.has(role) else BASE_FRAMES
+		_anim.scale = Vector2(3.5, 3.5)           # mesmos valores do astronauta em player.tscn
+		_anim.offset = Vector2(1.5, -18)
+		_anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(_anim)
+	_label = Label.new()
+	_label.text = display_name
+	_label.add_theme_font_override("font", FONT)
+	_label.add_theme_font_size_override("font_size", 18)
+	_label.add_theme_color_override("font_color", Color("dfe9ff"))
+	_label.add_theme_color_override("font_outline_color", Color("1b2a5c"))
+	_label.add_theme_constant_override("outline_size", 6)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label.size = Vector2(240, 24)
+	_label.position = Vector2(-120, -150)
+	add_child(_label)
+	_refresh_visual()
+
+
+func set_target(pos: Vector2) -> void:
+	_target = pos
+	if not _placed:
+		global_position = pos
+		_placed = true
+
+
+func is_moving() -> bool:
+	return _moving
+
+
+func current_animation() -> String:
+	return String(_anim.animation) if _anim != null else ""
+
+
+func _process(delta: float) -> void:
+	if not _placed:
+		return
+	var to_target := _target - global_position
+	_moving = to_target.length() > MOVE_THRESHOLD
+	if _moving:
+		# diagonal: o eixo horizontal vence o empate (como no player.gd)
+		if absf(to_target.x) >= absf(to_target.y):
+			_facing = "side"
+			_left = to_target.x < 0.0
+		else:
+			_facing = "up" if to_target.y < 0.0 else "down"
+	global_position = global_position.lerp(_target, clampf(delta * FOLLOW, 0.0, 1.0))
+	_refresh_visual()
+
+
+func _refresh_visual() -> void:
+	if _anim != null:
+		var anim := "%s_%s" % ["run" if _moving else "idle", _facing]
+		_anim.flip_h = _left and _facing == "side"
+		if _anim.animation != anim or not _anim.is_playing():
+			_anim.play(anim)
+	elif _still != null:
+		var tex: Texture2D = SCIENTIST_TEX[_facing]
+		_still.texture = tex
+		_still.flip_h = _left and _facing == "side"      # a imagem lateral do cientista olha para a direita
+		_still.offset = Vector2(0, -tex.get_height() / 2.0)   # origem = pes
+
+
+## Imagem parada (de frente) do astronauta na cor do papel.
+static func texture_for(r: int) -> Texture2D:
+	if r == Net.Role.SCIENTIST:
+		return SCIENTIST_TEX["down"]
+	if SUIT.has(r):
+		return load("res://assets/player/variants/player_down_%s.png" % SUIT[r]) as Texture2D
+	return TEX_ASTRONAUT
+
+
+## Animacoes do astronauta na cor do papel (null = cor original).
+static func frames_for(r: int) -> SpriteFrames:
+	if SUIT.has(r):
+		return load("res://assets/player/variants/player_frames_%s.tres" % SUIT[r]) as SpriteFrames
+	return null

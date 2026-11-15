@@ -19,6 +19,16 @@ import urllib.parse
 import urllib.request
 
 
+def _flare_rank(cls: str) -> float:
+    """Ordena por intensidade real: X > M > C > B > A e, dentro da letra, pelo numero."""
+    letter = cls[:1].upper()
+    try:
+        num = float(cls[1:])
+    except ValueError:
+        num = 0.0
+    return "ABCMX".find(letter) * 1000 + num
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else "space_events.json"
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
@@ -46,7 +56,7 @@ def main() -> int:
     if not events:
         print("nenhuma erupcao no periodo; mantendo o arquivo anterior", file=sys.stderr)
         return 1
-    events.sort(key=lambda e: e["class"], reverse=True)
+    events.sort(key=lambda e: _flare_rank(e["class"]), reverse=True)
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"source": "DONKI", "generated": datetime.datetime.utcnow().isoformat() + "Z",
                    "events": events[:20]}, f, ensure_ascii=False, indent=1)

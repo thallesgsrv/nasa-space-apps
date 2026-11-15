@@ -159,6 +159,12 @@ func cool_core(amount: float) -> void:
 	changed.emit()
 
 
+## Pedido da tripulacao em multiplayer (engenheiro / astronauta 2): roda no host, valor fixo.
+func crew_cool_core() -> void:
+	cool_core(50.0)
+	notice.emit(tr("Resfriamento acionado pela tripulação. Núcleo em %d%%.") % int(round(heat)))
+
+
 func heal(amount: float) -> void:
 	health = clampf(health + amount, 0.0, 100.0)
 	changed.emit()
