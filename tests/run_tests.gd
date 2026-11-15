@@ -41,9 +41,11 @@ func _ready() -> void:
 	await _test_net_client_game_scene()
 	_test_net_roles()
 	await _test_ghost_animation()
+	await _test_ghost_hitbox()
 	await _test_net_crew_client_scene()
 	_test_translations()
 	_test_assets_referenced_exist()
+	_test_rooms_consistency()
 	await _test_every_interaction_and_minigame()
 	await _test_game_over_flow_in_game_scene()
 	print("\n%d verificacoes, %d falhas" % [_checks, _fails])
@@ -446,6 +448,7 @@ func _test_every_interaction_and_minigame() -> void:
 	await get_tree().create_timer(0.7).timeout   # espera o fade e o menu do tutorial abrirem
 	UI.dismiss_all()   # fecha o tutorial
 	await get_tree().create_timer(0.1).timeout
+	check(game._on_earth and game._room.room_id() == "laboratorio" and game.player == game.scientist, "o jogo solo COMECA na Terra (laboratorio, como cientista)")
 	var rooms: Array = []
 	for f in DirAccess.get_files_at("res://scenes/rooms"):
 		if f.ends_with(".tscn"):
@@ -473,6 +476,11 @@ func _test_every_interaction_and_minigame() -> void:
 	# minigames
 	var opens := {
 		"petri": func(): return UI.open_petri(),
+		"nave (desvio)": func(): return UI.open_dodge(),
+		"microscopio": func(): return UI.open_microscope(1),
+		"mural de formulas": func(): return UI.open_mural(false),
+		"mural de formulas (dificil)": func(): return UI.open_mural(true),
+		"reagente": func(): return UI.open_reagent(1),
 		"mochila": func(): return UI.open_grid("inventory"),
 		"armario": func(): return UI.open_grid("storage"),
 	}
@@ -485,12 +493,13 @@ func _test_every_interaction_and_minigame() -> void:
 		g.queue_free()
 		await get_tree().process_frame
 	# troca estacao <-> Terra
+	var was: bool = game._on_earth
 	game.toggle_world()
 	await get_tree().create_timer(1.0).timeout
-	check(game._on_earth, "foi para a Terra")
+	check(game._on_earth != was, "trocou de mundo")
 	game.toggle_world()
 	await get_tree().create_timer(1.0).timeout
-	check(not game._on_earth, "voltou para a estacao")
+	check(game._on_earth == was, "voltou ao mundo de antes")
 	game.queue_free()
 	await get_tree().process_frame
 	UI.reset()
@@ -717,3 +726,84 @@ func _test_ghost_animation() -> void:
 	check(sg._still.texture == sg.SCIENTIST_TEX["side"] and sg._still.flip_h, "cientista vira para o lado e espelha")
 	root.queue_free()
 	await get_tree().process_frame
+
+
+func _test_ghost_hitbox() -> void:
+	section("multiplayer: fantasma tem hitbox dos pes (igual a do jogador) e barra de verdade")
+	var root := Node2D.new()
+	add_child(root)
+	var me := (load("res://scenes/player.tscn") as PackedScene).instantiate() as CharacterBody2D
+	root.add_child(me)
+	me.global_position = Vector2(100, 300)
+	var g := Node2D.new()
+	g.set_script(load("res://scripts/ghost.gd"))
+	root.add_child(g)
+	g.setup(1, Net.Role.ASTRONAUT2, "X")
+	g.set_target(Vector2(300, 300))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var hb := g.get_node_or_null("Hitbox") as StaticBody2D
+	check(hb != null, "o fantasma tem um corpo Hitbox")
+	var mine := (me.get_node("CollisionShape2D").shape as RectangleShape2D).size
+	var theirs := (hb.get_child(0).shape as RectangleShape2D).size
+	check(mine == theirs, "hitbox do fantasma = hitbox do jogador (%s)" % str(mine))
+	check(g.is_solid(), "longe do jogador local o fantasma e solido")
+	# o jogador anda contra o fantasma e e barrado (nao atravessa)
+	me.global_position = Vector2(200, 300)
+	var moved := 0.0
+	for i in 40:
+		var c := me.move_and_collide(Vector2(10, 0))
+		await get_tree().physics_frame
+		if c != null:
+			break
+		moved += 10.0
+	check(me.global_position.x < 300.0 - 22.0 + 1.0, "o jogador para na frente do fantasma (x=%d)" % int(me.global_position.x))
+	# em cima do fantasma (spawn sobreposto): fica transparente, ninguem trava
+	me.global_position = Vector2(300, 300)
+	g._update_solid()   # direto: a fisica empurra o jogador para fora antes de um quadro passar
+	check(not g.is_solid(), "sobreposto ao jogador o fantasma deixa de ser solido")
+	me.global_position = Vector2(100, 300)
+	g._update_solid()
+	check(g.is_solid(), "ao se afastar o fantasma volta a ser solido")
+	root.queue_free()
+	await get_tree().process_frame
+
+
+# ---------------------------------------------------------------- coerencia das salas
+func _test_rooms_consistency() -> void:
+	section("salas: portas, spawns e objetivos das missoes sao coerentes")
+	var spawns := {}      # id da sala -> nomes dos spawns
+	var actions := {}     # id da sala -> acoes das zonas de interacao
+	var doors := {}       # id da sala -> [[destino, spawn]]
+	for f in DirAccess.get_files_at("res://scenes/rooms"):
+		if not f.ends_with(".tscn"):
+			continue
+		var id := f.get_basename()
+		var room := (load("res://scenes/rooms/" + f) as PackedScene).instantiate()
+		spawns[id] = []
+		actions[id] = []
+		doors[id] = []
+		for m in room.get_node("Spawns").get_children():
+			spawns[id].append(String(m.name))
+		for z in room.get_node("Interativos").get_children():
+			actions[id].append(String(z.get("action")))
+		for d in room.get_node("Portas").get_children():
+			doors[id].append([String(d.get("target_room")).get_file().get_basename(), String(d.get("target_spawn"))])
+		room.free()
+	for id in doors:
+		for d in doors[id]:
+			check(spawns.has(d[0]), "%s: a porta leva a uma sala que existe (%s)" % [id, d[0]])
+			if spawns.has(d[0]):
+				check(spawns[d[0]].has(d[1]), "%s: o spawn '%s' existe em %s" % [id, d[1], d[0]])
+				if d[0] != "laboratorio":
+					var back := false
+					for b in doors[d[0]]:
+						if b[0] == id:
+							back = true
+					check(back, "%s tem porta de volta para %s" % [d[0], id])
+	# todos os alvos que a missao aponta tem a zona de interacao na sala
+	var targets := [["armazem", "mission_pacotes"], ["armazem", "aquecedor"], ["sala_controle", "centrifuga"],
+		["armazem", "capsula"], ["laboratorio", "mesa_analise"], ["laboratorio", "painel_base"],
+		["sala_controle", "assento"], ["sala_reator", "escudos"], ["sala_reator", "nucleo"]]
+	for tg in targets:
+		check(actions.has(tg[0]) and actions[tg[0]].has(tg[1]), "a sala %s tem a zona '%s'" % [tg[0], tg[1]])

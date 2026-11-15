@@ -55,6 +55,16 @@ func _ready() -> void:
 		world.add_child(scientist)
 		_on_earth = true
 		_load_room(EARTH_ROOM, EARTH_SPAWN)
+	elif not Net.is_online():
+		# jogo solo: tudo comeca na TERRA (o cientista na base). E la que a missao e planejada (CML 1-9);
+		# depois o jogador aperta 1 e vai para a estacao.
+		world.remove_child(astronaut)
+		player = scientist
+		world.add_child(scientist)
+		_on_earth = true
+		_saved_room = START_ROOM
+		_saved_pos = Vector2.ZERO   # ZERO = chegar pelo ponto "start" da cafeteria
+		_load_room(EARTH_ROOM, EARTH_SPAWN)
 	else:
 		_load_room(START_ROOM, START_SPAWN)
 	await _fade_to(0.0)
@@ -70,10 +80,14 @@ func _ready() -> void:
 		player.locked = true
 		await Interactions.show_tutorial()
 		if not MissionState.planned and not MissionState.planning_disabled:
+			if _on_earth:
+				await UI.say([tr("Você é o cientista na base, na Terra. É aqui que a missão nasce: o planejamento (CML 1 a 9)."), tr("Quando terminar, aperte 1 para ir à estação e começar a missão.")])
 			await MissionState.run_planning()   # fase na Terra: CML 1 a 9 (ou plano padrao)
 		player.locked = false
 		if Missions.active == "" and Missions.finished.is_empty():
 			Missions.start("bionutrientes")
+		if _on_earth:
+			UI.toast(tr("Missão planejada. Aperte 1 para ir à estação."), 6.0)
 
 
 func _process(_delta: float) -> void:
@@ -177,8 +191,11 @@ func toggle_world() -> void:
 		UI.toast(tr("Terra: você controla o cientista. Aperte 1 para voltar à estação."), 4.0)
 	else:
 		_swap_player(astronaut)
-		_load_room(_saved_room, "")
-		player.global_position = _saved_pos
+		if _saved_pos == Vector2.ZERO:
+			_load_room(_saved_room, START_SPAWN)   # primeira ida a estacao: chega na cafeteria
+		else:
+			_load_room(_saved_room, "")
+			player.global_position = _saved_pos
 		_on_earth = false
 		UI.toast(tr("Estação: você controla o astronauta."), 3.0)
 	await _fade_to(0.0)
