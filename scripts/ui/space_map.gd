@@ -23,7 +23,7 @@ var mode := "select"
 var routes: Array = []
 var _sel := 0
 var _t := 0.0
-var _radar: AnimatedSprite2D
+var _radar: RadarView
 var _stars: Array = []
 
 
@@ -37,13 +37,10 @@ func configure(map_mode: String, current_route: String = "") -> void:
 	rng.seed = 4242
 	for i in 130:
 		_stars.append({"p": Vector2(rng.randf_range(60, VIEW.x - 60), rng.randf_range(160, VIEW.y - 80)), "s": rng.randf_range(2.0, 5.0), "ph": rng.randf() * TAU})
-	_radar = AnimatedSprite2D.new()
-	_radar.sprite_frames = load("res://assets/ui/radar_frames.tres")
-	_radar.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_radar.scale = Vector2(6, 6)
+	_radar = RadarView.new()
 	_radar.position = Vector2(VIEW.x - 170.0, 150.0)
 	add_child(_radar)
-	_radar.play("default")
+	_radar.setup(6.0)
 
 
 # ---------------------------------------------------------------- entrada
@@ -94,6 +91,8 @@ func _confirm() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	var rs := RadarView.from_voyage()
+	_radar.set_state(bool(rs["active"]), float(rs["dist"]), float(rs["angle"]))
 	queue_redraw()
 
 

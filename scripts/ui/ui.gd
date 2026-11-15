@@ -103,6 +103,7 @@ var _alarm: Label
 var _voyage: Control
 var _voyage_title: Label
 var _voyage_info: Label
+var _voyage_radar: RadarView
 var _voyage_bars: Dictionary = {}
 
 # fade (dormir)
@@ -1003,6 +1004,11 @@ func _build_voyage() -> void:
 	_voyage_info = _label("", 16)
 	_voyage_info.position = Vector2(24, 44)
 	_voyage.add_child(_voyage_info)
+	# radar da nave: varredura animada; um alvo aparece em cima quando ha objeto perto
+	_voyage_radar = RadarView.new()
+	_voyage_radar.position = Vector2(356, 40)
+	_voyage.add_child(_voyage_radar)
+	_voyage_radar.setup(3.0)
 	var defs := [["energy", "ENERGIA", Color("e8c23a")], ["fuel", "COMBUSTÍVEL", Color("e07a3a")], ["progress", "PROGRESSO", Color("3ac28a")]]
 	for i in defs.size():
 		var d: Array = defs[i]
@@ -1081,6 +1087,8 @@ func _refresh_voyage() -> void:
 	_voyage_bars["energy"].size.x = 150.0 * clampf(Voyage.energy, 0.0, 100.0) / 100.0
 	_voyage_bars["fuel"].size.x = 150.0 * clampf(Voyage.fuel, 0.0, 100.0) / 100.0
 	_voyage_bars["progress"].size.x = 150.0 * clampf(Voyage.progress, 0.0, 100.0) / 100.0
+	var rs := RadarView.from_voyage()
+	_voyage_radar.set_state(bool(rs["active"]), float(rs["dist"]), float(rs["angle"]))
 
 
 func _refresh_tracker() -> void:

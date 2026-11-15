@@ -857,6 +857,17 @@ func _test_new_rules() -> void:
 		var tr_ := Rect2(UI._toast.position, UI._toast.size)
 		check(tr_.position.x >= 0.0 and tr_.end.x <= 1536.0, "aviso curto dentro da tela")
 		check(UI._toast_label.size.is_equal_approx(UI._toast.size) and UI._toast_label.get_minimum_size().y <= UI._toast.size.y, "texto do aviso cabe na caixa (min %s, caixa %s)" % [str(UI._toast_label.get_minimum_size()), str(UI._toast.size)])
+	# radar da nave: sem viagem fica parado; com asteroide visivel mostra o alvo (mais perto = mais ao centro)
+	GameState.reset()
+	var rs0 := RadarView.from_voyage()
+	check(not bool(rs0["active"]) and float(rs0["dist"]) < 0.0, "radar desligado sem viagem")
+	Voyage.start("Lua")
+	check(bool(RadarView.from_voyage()["active"]) and float(RadarView.from_voyage()["dist"]) < 0.0, "radar ligado, sem objeto perto")
+	Voyage.force_event("asteroid")
+	Voyage.asteroid["eta"] = 5.0
+	var rs1 := RadarView.from_voyage()
+	check(float(rs1["dist"]) >= 0.0 and float(rs1["dist"]) < 1.0, "radar mostra o asteroide visivel (dist %.2f)" % float(rs1["dist"]))
+	GameState.reset()
 	# voto do CML 1 em modo automatico segue a escolha
 	MissionState.reset()
 	GameState.reset()
