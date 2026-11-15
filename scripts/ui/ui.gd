@@ -17,6 +17,7 @@ const MICROSCOPE := preload("res://scripts/ui/microscope_game.gd")
 const MURAL := preload("res://scripts/ui/formula_mural.gd")
 const REAGENT := preload("res://scripts/ui/reagent_game.gd")
 
+const OVERLAY_GROUP := "ui_overlay"   # telas abertas por cima do jogo (grade, minigames)
 const INK := Color("1b2a5c")
 const VIEW := Vector2(1536, 1024)
 
@@ -28,6 +29,7 @@ var _locks := 0
 var _video_active := false
 var _video_skip := false
 var realtime := false   # true: o tempo do jogo corre mesmo com menu aberto (minigame das valvulas)
+var _dismissing := false   # true por um quadro em dismiss_all(): falas e menus pendentes se encerram sozinhos
 var busy: bool:
 	get:
 		return _locks > 0
@@ -152,6 +154,44 @@ func unlock() -> void:
 	_locks = maxi(0, _locks - 1)
 
 
+## Fecha TUDO o que estiver aberto (menu, dialogo, painel, grade, minigames). As rotinas que esperavam
+## por eles terminam normalmente (menu = -1, painel e minigames fechados), sem travar o jogo.
+## Usado antes de uma tela de game over, que precisa da interface livre.
+func dismiss_all() -> void:
+	_dismissing = true
+	if _menu_active:
+		_chosen.emit(-1)
+	if _panel_active:
+		_panel_closed.emit()
+	_advance.emit()
+	for g in get_tree().get_nodes_in_group(OVERLAY_GROUP):
+		if g.has_signal("closed"):
+			g.closed.emit()
+		elif g.has_signal("picked"):
+			g.picked.emit(-1)
+	await get_tree().process_frame
+	_dismissing = false
+
+
+## Nova partida: devolve a interface ao estado inicial (sem travas, sem telas abertas, tempo normal).
+func reset() -> void:
+	_locks = 0
+	realtime = false
+	_dismissing = false
+	_video_active = false
+	_menu_active = false
+	_dialog_active = false
+	_panel_active = false
+	_menu.visible = false
+	_dialog.visible = false
+	_panel.visible = false
+	for g in get_tree().get_nodes_in_group(OVERLAY_GROUP):
+		g.queue_free()
+	_refresh_hud()
+	_refresh_voyage()
+	_refresh_solar()
+
+
 ## Idioma mudou: atualiza os textos fixos da interface.
 func retranslate() -> void:
 	for l in _static_labels:
@@ -191,6 +231,8 @@ func say(lines) -> void:
 	_dialog_active = true
 	_dialog.visible = true
 	for line in arr:
+		if _dismissing:
+			break
 		await _show_line(str(line))
 	_dialog.visible = false
 	_dialog_active = false
@@ -251,7 +293,7 @@ func play_video(path: String, resume_music: bool = true) -> void:
 func open_petri() -> Control:
 	var g = PETRI.new()
 	g.configure()
-	add_child(g)
+	_add_overlay(g)
 	move_child(g, _fade.get_index())   # cobre tudo (HUD, objetivo, avisos), so o fade fica por cima
 	return g
 
@@ -272,8 +314,8 @@ func open_reagent(diff: int) -> Control:
 
 func _open_game(g: Control, arg: Variant) -> Control:
 	g.configure(arg)
-	add_child(g)
-	move_child(g, _hud.get_index() + 1)
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
 	return g
 
 
@@ -281,16 +323,21 @@ func _open_game(g: Control, arg: Variant) -> Control:
 func open_dodge(free_play: bool = false) -> Control:
 	var g = DODGE.new()
 	g.configure(free_play)
-	add_child(g)
-	move_child(g, _hud.get_index() + 1)
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
 	return g
+
+
+func _add_overlay(g: Control) -> void:
+	g.add_to_group(OVERLAY_GROUP)
+	add_child(g)
 
 
 ## Abre a tela de grade ("inventory" ou "storage"); feche com queue_free() no fim.
 func open_grid(kind: String) -> Control:
 	var g = GRID.new()
 	g.configure(kind)
-	add_child(g)
+	_add_overlay(g)
 	move_child(g, _hud.get_index() + 1)  # fica atras do menu de escolha, dialogo e avisos
 	return g
 
@@ -453,6 +500,8 @@ func _show_line(text: String) -> void:
 	_type_tween.finished.connect(_on_typed)
 	while true:
 		await _advance
+		if _dismissing:
+			break
 		if _typing:  # primeiro F: completa o texto
 			_type_tween.kill()
 			_dialog_text.visible_characters = -1

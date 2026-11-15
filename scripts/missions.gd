@@ -32,6 +32,12 @@ const DEFS := {
 			{"id": "escudos", "side": "ESPAÇO", "text": "Se houver alerta: correr ao controle de energia (sala do reator) e ativar os escudos antes da onda chegar"},
 		],
 	},
+	"retorno": {
+		"title": "Retorno à Terra",
+		"steps": [
+			{"id": "retorno", "side": "ESPAÇO", "text": "Verificar os sistemas, escolher a janela de retorno e fazer a reentrada (cadeira de comando, sala de controle)"},
+		],
+	},
 	"viagem": {
 		"title": "Viagem até a rota escolhida",
 		"steps": [
@@ -41,7 +47,7 @@ const DEFS := {
 	},
 }
 
-const ORDER := ["bionutrientes", "viagem", "cme"]   # as missoes comecam nesta ordem
+const ORDER := ["bionutrientes", "viagem", "cme", "retorno"]   # as missoes comecam nesta ordem
 
 ## Eventos do documento de design (ainda sem minigames; so listados no menu).
 const EVENTS := [
@@ -81,6 +87,8 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
+	if Net.is_client():
+		return
 	if heater_state == "heating" and GameState.running:
 		heating_left -= delta
 		if heating_left <= 0.0:
@@ -154,6 +162,8 @@ func current_target() -> Dictionary:
 		"escudos":
 			if Solar.alert_sent and not Solar.resolved:
 				return {"room": "sala_reator", "action": "escudos"}
+		"retorno":
+			return {"room": "sala_controle", "action": "assento"}
 	return {}
 
 
@@ -175,6 +185,9 @@ func color_name() -> String:
 
 
 func analyze_sample() -> String:
+	if Net.is_client():   # a base (cliente) pede ao host: a regra roda so la
+		return await Net.call_host("Missions", "analyze_sample", [], "")
+	MissionState.stat_inc("base_actions")
 	sample_ok = randf() < SUCCESS_CHANCE
 	sample_color = (COLORS_OK if sample_ok else COLORS_FAIL).pick_random()
 	analyzed = true
@@ -192,6 +205,9 @@ func send_data() -> void:
 ## Regras do documento: falha -> mais energia/dados gastos, sem efeito posterior;
 ## sucesso real -> proxima missao melhor; sucesso declarado sobre falha real -> risco (hidden).
 func verdict(says_success: bool) -> Array:
+	if Net.is_client():
+		return await Net.call_host("Missions", "verdict", [says_success], [])
+	MissionState.stat_inc("base_actions")
 	flags.clear()
 	if says_success:
 		if sample_ok:
@@ -265,7 +281,7 @@ func summary_text() -> String:
 		for id in finished:
 			lines.append(" - " + tr(DEFS[id]["title"]))
 		var fx := effects_lines()
-		lines.append(tr("Efeitos para a próxima missão: ") + (", ".join(fx) if not fx.is_empty() else "nenhum"))
+		lines.append(tr("Efeitos para a próxima missão: ") + (", ".join(fx) if not fx.is_empty() else tr("nenhum")))
 	lines.append("")
 	lines.append(tr("Eventos possíveis (em desenvolvimento): ") + ", ".join(EVENTS.map(func(e): return tr(e))))
 	lines.append("")

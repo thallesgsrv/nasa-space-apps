@@ -187,7 +187,9 @@ func _cut() -> void:
 	stage = 2
 	_cut_btn.visible = false
 	if not Missions.analyzed:
-		Missions.analyze_sample()   # a cor da amostra e definida ao cortar
+		await Missions.analyze_sample()   # a cor da amostra e definida ao cortar (no multiplayer, pelo host)
+	if not is_inside_tree():
+		return
 	var c: Color = COLORS.get(Missions.sample_color, Color.WHITE)
 	_tinted = _tint(c)
 	_fungus.texture = _tinted

@@ -91,9 +91,10 @@ func start(route_name: String) -> void:
 	route = route_name
 	travel_time = ROUTES[route_name]["travel"]
 	time_left = ROUTES[route_name]["limit"]
+	MissionState.apply_to_voyage()   # massa, combustivel, consumo e margem vindos do planejamento (CML)
 	var fx: Dictionary = Missions.flags
 	if fx.get("nave_leve", false):
-		mass = 90.0
+		mass = minf(mass, 90.0)
 	if fx.get("menos_energia", false):
 		energy_mult *= 0.8
 	if fx.get("energia_extra", false):
@@ -145,6 +146,8 @@ func comms_ok() -> bool:
 
 
 func _process(delta: float) -> void:
+	if Net.is_client():
+		return
 	if not active or not GameState.running:
 		return
 	if UI.busy and not UI.realtime:
@@ -165,6 +168,7 @@ func _tick(delta: float) -> void:
 			if event == "comm":
 				event = ""
 			GameState.notice.emit(tr("Comunicação com a base restabelecida."))
+			MissionState.set_outcome("comm", true)
 
 	next_in -= delta
 	if next_in <= 0.0:
@@ -193,7 +197,7 @@ func _tick(delta: float) -> void:
 
 
 func _roll_next() -> void:
-	next_event = "" if randf() < NO_EVENT_CHANCE else String(KINDS.pick_random())
+	next_event = "" if randf() < 1.0 - MissionState.event_chance() else MissionState.pick_event_kind()
 
 
 ## Dispara um evento (usado pelo sorteio; tambem serve para testes).
@@ -204,9 +208,10 @@ func force_event(kind: String) -> void:
 
 func _trigger(kind: String) -> void:
 	event = kind
+	_log_event(kind)
 	match kind:
 		"comm":
-			blackout_left = maxf(5.0, BLACKOUT_TIME - comms_cut)
+			blackout_left = maxf(5.0, BLACKOUT_TIME * MissionState.blackout_mult() - comms_cut)
 			GameState.notice.emit(tr("Interferência na comunicação! Sem contato com a base por %d s.") % int(blackout_left))
 		"asteroid":
 			var speed := randf_range(6.0, 12.0)
@@ -219,6 +224,15 @@ func _trigger(kind: String) -> void:
 		"reactor":
 			_start_reactor()
 	changed.emit()
+
+
+## Registra o evento no relatorio com o selo de origem (nada aqui e registro real da NASA).
+func _log_event(kind: String) -> void:
+	var tag := MissionState.TAG_FICT
+	var label: String = KIND_NAMES.get(kind, kind)
+	if kind == "comm":
+		tag = MissionState.TAG_RISK   # blecaute de radio por atividade solar e um fenomeno real; aqui e simulado
+	MissionState.log_event(kind, tag, label, MissionState.cause_for(kind))
 
 
 func _fail(reason: String) -> void:
@@ -256,6 +270,7 @@ func _tick_asteroid(delta: float) -> void:
 	if eta <= 0.0:
 		if bool(asteroid["maneuvered"]) or not bool(asteroid["will_hit"]):
 			GameState.notice.emit(tr("O objeto passou sem atingir a nave."))
+			MissionState.set_outcome("asteroid", true)
 			event = ""
 			asteroid = {}
 			base_alert = ""
@@ -286,6 +301,10 @@ func asteroid_choices() -> Array:
 
 
 func set_estimate(seconds: int) -> void:
+	if Net.is_client():
+		await Net.call_host("Voyage", "set_estimate", [seconds])
+		return
+	MissionState.stat_inc("base_actions")
 	if event == "asteroid":
 		asteroid["estimate"] = seconds
 
@@ -303,7 +322,10 @@ func _start_reactor() -> void:
 	reactor = {"targets": targets, "two": two, "state": st, "eff": 0.0, "moves": 0, "wrong": 0, "elapsed": 0.0}
 	if _correct() == 5:
 		_rotate(reactor["state"], 0)
-	GameState.heat = minf(95.0, GameState.heat + REACTOR_HEAT_JUMP)
+	var jump := REACTOR_HEAT_JUMP * lerpf(1.2, 0.8, MissionState.p("reliability") / 100.0)   # confiabilidade (CML 3)
+	if MissionState.use_part("reator"):
+		jump *= 0.6   # peca reserva (CML 4) amortece o salto de temperatura
+	GameState.heat = maxf(GameState.heat, minf(95.0, GameState.heat + jump))   # nunca esfria o nucleo
 	_apply_reactor_rate()
 	GameState.notice.emit(tr("ALERTA: falha térmica no reator! Ajuste as válvulas no painel do núcleo (a base tem os alvos)."))
 
@@ -373,6 +395,7 @@ func _reactor_stable() -> void:
 		GameState.notice.emit(tr("Reator estabilizado dentro do prazo. Potência +8."))
 	else:
 		GameState.notice.emit(tr("Reator estabilizado, mas fora do prazo: sem bônus."))
+	MissionState.set_outcome("reactor", t <= REACTOR_DEADLINE)
 	event = ""
 	reactor = {}
 	GameState.heat_extra_rate = 0.0
@@ -380,6 +403,7 @@ func _reactor_stable() -> void:
 
 
 func _reactor_shutdown() -> void:
+	MissionState.set_outcome("reactor", false)
 	energy = maxf(0.0, energy - 40.0)
 	event = ""
 	reactor = {}
@@ -461,6 +485,9 @@ func forecast_text() -> String:
 
 ## A base manda um alerta para a nave. Devolve o texto mostrado ao jogador.
 func send_alert() -> Array:
+	if Net.is_client():
+		return await Net.call_host("Voyage", "send_alert", [], [])
+	MissionState.stat_inc("base_actions")
 	var kind := event if event != "" else next_event
 	if kind == "":
 		return [tr("Nada de perigoso a avisar por enquanto.")]

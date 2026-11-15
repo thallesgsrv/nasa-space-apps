@@ -5,7 +5,7 @@ extends Node
 
 signal changed            # necessidades / vida / nucleo mudaram
 signal inventory_changed  # inventario, armario ou capsula mudaram
-signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel): game over
+signal failed(reason: String)    # missao falhou (colisao, tempo, energia, combustivel, vida zerada): game over
 signal exploded                # o nucleo ficou 12 s em 100% sem resfriar
 signal notice(text: String)  # aviso curto para a interface mostrar
 
@@ -83,8 +83,10 @@ func reset() -> void:
 	tutorial_done = false
 	_heat_warned = false
 	Missions.reset()
+	MissionState.reset()
 	Voyage.reset()
 	Solar.reset()
+	UI.reset()
 	changed.emit()
 	inventory_changed.emit()
 
@@ -92,6 +94,8 @@ func reset() -> void:
 func _process(delta: float) -> void:
 	# som da contagem do nucleo acompanha a contagem (e pausa com menus)
 	Audio.sync_countdown(meltdown_left if running else -1.0, UI.busy and not UI.realtime)
+	if Net.is_client():
+		return  # multiplayer: o cientista so espelha o estado do host (ver net.gd)
 	if not running:
 		return
 	# a viagem da capsula segue mesmo com menus abertos
@@ -110,6 +114,11 @@ func _process(delta: float) -> void:
 		if v <= 0.0:
 			damage += STARVE_DAMAGE
 	health = clampf(health - damage * delta, 0.0, 100.0)
+	if health <= 0.0:
+		running = false
+		changed.emit()
+		failed.emit(tr("Seu corpo não aguentou: fome, sede ou cansaço demais."))
+		return
 	if heat >= 100.0:
 		if meltdown_left < 0.0:
 			meltdown_left = MELTDOWN_TIME
@@ -150,6 +159,12 @@ func cool_core(amount: float) -> void:
 	if heat < 100.0:
 		meltdown_left = -1.0
 	changed.emit()
+
+
+## Pedido da tripulacao em multiplayer (engenheiro / astronauta 2): roda no host, valor fixo.
+func crew_cool_core() -> void:
+	cool_core(50.0)
+	notice.emit(tr("Resfriamento acionado pela tripulação. Núcleo em %d%%.") % int(round(heat)))
 
 
 func heal(amount: float) -> void:

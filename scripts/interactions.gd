@@ -4,10 +4,12 @@ extends Node
 ## Tudo aqui e PLACEHOLDER de jogabilidade: valores e textos ficam faceis de trocar.
 
 const ROUTES := ["Lua", "Marte", "Júpiter"]  # rotas de exemplo (sala de controle)
-const PLANET_TRANSITION := "res://assets/Viideos/trasiicao.ogv"  # cutscene de troca de planeta
-
+const PLANET_TRANSITION := "res://assets/videos/transicao.ogv"  # cutscene de troca de planeta
 
 func run(action: String, source: Node, player: Node) -> void:
+	if Net.is_crew_client():
+		await _crew_action(action)
+		return
 	match action:
 		"fridge":
 			await _cafeteria_item(source, "refri", tr("Geladeira"), tr("Beber agora"))
@@ -55,6 +57,30 @@ func run(action: String, source: Node, player: Node) -> void:
 			push_warning("Acao de interacao desconhecida: " + action)
 
 
+# ============================ tripulacao (multiplayer) ============================
+## Engenheiro de voo / astronauta 2 jogam na estacao, mas a simulacao e do host: aqui so existem as
+## acoes da funcao deles, executadas no host (Net.call_host). O resto e do comandante.
+func _crew_action(action: String) -> void:
+	match action:
+		"nucleo":
+			var title := tr("Núcleo %d%%") % int(round(GameState.heat))
+			var i := await UI.choose([tr("Resfriar núcleo"), tr("Fechar")], title)
+			if i == 0:
+				await Net.call_host("GameState", "crew_cool_core")
+				await UI.say(tr("Pedido de resfriamento enviado ao comandante."))
+		"escudos":
+			if not Solar.alert_sent or Solar.resolved:
+				await UI.say(tr("Controle de energia e suporte de vida. Nenhum alerta solar ativo."))
+			elif Solar.shield_on:
+				await UI.say(tr("Os escudos já estão ativos. Aguarde a onda passar."))
+			else:
+				var j := await UI.choose([tr("Ativar escudos"), tr("Cancelar")], tr("Controle de energia"))
+				if j == 0:
+					await Net.call_host("Solar", "activate_shield")
+		_:
+			await UI.say(tr("Só o comandante (host) opera este equipamento. Você cuida do núcleo e dos escudos."))
+
+
 # ============================ tutorial ============================
 func show_tutorial() -> void:
 	var skip := await UI.choose([tr("Ver tutorial"), tr("Pular tutorial")], tr("Tutorial"))
@@ -64,7 +90,7 @@ func show_tutorial() -> void:
 		tr("Use W A S D (ou as setas) para andar."),
 		tr("Perto de um objeto interativo aparece [F]. Aperte F (ou Enter) para usar."),
 		tr("Aperte I (ou Tab) para abrir a mochila. Esc cancela os menus."),
-		tr("Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra)."),
+		tr("Você é o astronauta; seu parceiro é a base na Terra (cientista). A base prevê os perigos e dá o veredito das análises: conversem!") if Net.has_partner() else tr("Aperte 1 para trocar entre o astronauta (estação) e o cientista (Terra)."),
 		tr("Aperte M (ou J) para ver as missões. O objetivo atual aparece no canto da tela por um tempo; depois fica só um \"!\" (clique nele ou aperte V para ver de novo)."),
 		tr("Fique de olho nas barras de comida, sono e água lá embaixo!"),
 	])
@@ -72,6 +98,9 @@ func show_tutorial() -> void:
 
 # ============================ inventario ============================
 func open_inventory() -> void:
+	if Net.is_client():   # multiplayer: a mochila e as necessidades sao do astronauta (host)
+		await UI.say(tr("A mochila é do astronauta. Você acompanha o estado dele pelas barras da tela."))
+		return
 	var g = UI.open_grid("inventory")
 	g.desc_provider = _inventory_text
 	while true:
@@ -122,8 +151,8 @@ func _effects_text(effects: Dictionary) -> String:
 		return tr("Sem efeito.")
 	var names := {"food": tr("Comida"), "thirst": tr("Água"), "sleep": tr("Sono"), "health": tr("Vida")}
 	var parts: Array[String] = []
-	for k in effects:
-		parts.append("%s %+d" % [names.get(k, k), int(effects[k])])
+	for key in effects:
+		parts.append("%s %+d" % [names.get(key, key), int(effects[key])])
 	return ", ".join(parts) + "."
 
 
@@ -146,7 +175,7 @@ func _bunk() -> void:
 	var i := await UI.choose([tr("Dormir"), tr("Cancelar")], tr("Beliche (2 vagas)"))
 	if i != 0:
 		return
-	UI.lock()  # mantem o tempo parado durante o fade
+	UI.lock()
 	await UI.blink(1.2, 0.8)
 	UI.unlock()
 	GameState.apply_effects({"sleep": 100.0, "food": -10.0, "thirst": -10.0})
@@ -316,24 +345,29 @@ func _nucleo() -> void:
 		var title := tr("Núcleo %d%%") % int(round(GameState.heat))
 		if GameState.meltdown_left >= 0.0:
 			title += tr("  EXPLODE EM %d s") % ceili(GameState.meltdown_left)
-		var opts: Array = [tr("Resfriar núcleo"), tr("Ver temperatura"), tr("Fechar")]
+		var opts: Array = [tr("Resfriar núcleo"), tr("Ver temperatura")]
+		var acts: Array = ["resfriar", "temperatura"]
 		if Voyage.event == "reactor":
-			opts.insert(2, tr("Ajustar válvulas (URGENTE)"))
+			opts.append(tr("Ajustar válvulas (URGENTE)"))
+			acts.append("valvulas")
+		opts.append(tr("Fechar"))
+		acts.append("fechar")
 		var i := await UI.choose(opts, title)
-		if opts[maxi(i, 0)] == tr("Ajustar válvulas (URGENTE)") and i >= 0:
-			await _valvulas()
-		elif i == 0:
-			GameState.cool_core(50.0)
-			await UI.say(tr("Sistema de resfriamento ativado. Núcleo em %d%%.") % int(round(GameState.heat)))
-		elif i == 1:
-			var state := tr("estável")
-			if GameState.heat >= GameState.HEAT_WARNING:
-				state = tr("PERIGOSO")
-			elif GameState.heat >= 60.0:
-				state = tr("quente")
-			await UI.say(tr("Temperatura do núcleo: %d%% (%s).") % [int(round(GameState.heat)), state])
-		else:
+		if i < 0 or acts[i] == "fechar":
 			return
+		match String(acts[i]):
+			"resfriar":
+				GameState.cool_core(50.0)
+				await UI.say(tr("Sistema de resfriamento ativado. Núcleo em %d%%.") % int(round(GameState.heat)))
+			"temperatura":
+				var state := tr("estável")
+				if GameState.heat >= GameState.HEAT_WARNING:
+					state = tr("PERIGOSO")
+				elif GameState.heat >= 60.0:
+					state = tr("quente")
+				await UI.say(tr("Temperatura do núcleo: %d%% (%s).") % [int(round(GameState.heat)), state])
+			"valvulas":
+				await _valvulas()
 
 
 func _botiquim() -> void:
@@ -358,10 +392,6 @@ func _assento(source: Node, player: Node) -> void:
 	player.stand(stand_pos)
 
 
-func _name_of(table: Dictionary, id: String) -> String:
-	return table[id]["name"] if id != "" else "—"
-
-
 func _mission_console() -> void:
 	while true:
 		var title := ""
@@ -374,6 +404,10 @@ func _mission_console() -> void:
 			if Voyage.maneuver_available():
 				opts.append(tr("Manobra evasiva"))
 				acts.append("manobra")
+		elif Missions.is_step("retorno"):
+			title = tr("Retorno à Terra")
+			opts.append(tr("Iniciar o retorno à Terra"))
+			acts.append("retorno")
 		elif Missions.is_step("rota"):
 			title = tr("Escolha a rota")
 			for r in ROUTES:
@@ -399,6 +433,9 @@ func _mission_console() -> void:
 			await UI.say(Voyage.map_text())
 		elif a == "manobra":
 			await UI.say(Voyage.maneuver())
+		elif a == "retorno":
+			await MissionState.run_return()
+			break
 		elif a.begins_with("rota:"):
 			var r := a.substr(5)
 			var c := await UI.choose([tr("Confirmar viagem para %s") % tr(r), tr("Voltar")], tr("Rota: ") + tr(r))
@@ -414,7 +451,6 @@ func _mission_console() -> void:
 			var r2 := a.substr(7)
 			GameState.route = r2
 			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
-
 
 
 # Minigame da nave: desviar de asteroides. Sem dano = libera para jogar quando quiser na cabine.
@@ -507,7 +543,7 @@ func _painel_base() -> void:
 	await UI.say([tr("Coloração observada: %s.") % Missions.color_name().to_upper(), table])
 	var i := await UI.choose([tr("Indicar SUCESSO"), tr("Indicar FALHA"), tr("Cancelar")], tr("Veredito da base"))
 	if i == 0 or i == 1:
-		await UI.say(Missions.verdict(i == 0))
+		await UI.say(await Missions.verdict(i == 0))
 
 
 # ============================ dormitorio: checkup ============================
@@ -579,8 +615,8 @@ func _enviar_alerta() -> void:
 			labels.append(tr("Impacto em %d s") % int(v))
 		var k := await UI.choose(labels, tr("Quando ele atinge a nave?"))
 		if k >= 0:
-			Voyage.set_estimate(int(vals[k]))
-	await UI.say(Voyage.send_alert())
+			await Voyage.set_estimate(int(vals[k]))
+	await UI.say(await Voyage.send_alert())
 
 
 # Valvulas do reator (astronauta): girar uma valvula gira tambem as vizinhas. O tempo corre durante o minigame.
@@ -611,7 +647,7 @@ func _terminal_solar() -> void:
 		await UI.show_panel("", Callable(Solar, "terminal_text"))
 		var i := await UI.choose([tr("Enviar alerta de abrigo"), tr("Ignorar (falso alarme)"), tr("Ver o terminal de novo")], tr("Decisão da base"))
 		if i == 0 or i == 1:
-			await UI.say(Solar.decide(i == 0))
+			await UI.say(await Solar.decide(i == 0))
 			return
 		if i < 0:
 			return

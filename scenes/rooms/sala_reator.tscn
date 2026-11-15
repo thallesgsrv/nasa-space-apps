@@ -1,9 +1,21 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene format=3 uid="uid://c8mr412a1amd7"]
 
-[ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
-[ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
-[ext_resource type="Script" path="res://scripts/interactable.gd" id="3_inter"]
-[ext_resource type="Texture2D" path="res://assets/rooms/sala_reator.png" id="4_bg"]
+[ext_resource type="Script" uid="uid://uevjtx6koa1r" path="res://scripts/room.gd" id="1_room"]
+[ext_resource type="Script" uid="uid://bpwndl0ga1by5" path="res://scripts/door.gd" id="2_door"]
+[ext_resource type="Script" uid="uid://dt708w2jkqh4k" path="res://scripts/interactable.gd" id="3_inter"]
+[ext_resource type="Texture2D" uid="uid://bhgkebdek7ybw" path="res://assets/rooms/sala_reator.png" id="4_bg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lknad"]
+size = Vector2(588.12225, 92.51221)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_750e6"]
+size = Vector2(212.49365, 105.86102)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_73nwy"]
+size = Vector2(28.502197, 87.896515)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_xv3bb"]
+size = Vector2(110, 86)
 
 [sub_resource type="RectangleShape2D" id="s0"]
 size = Vector2(400, 1700)
@@ -33,7 +45,7 @@ size = Vector2(202, 452)
 size = Vector2(220, 348)
 
 [sub_resource type="RectangleShape2D" id="s9"]
-size = Vector2(232, 122)
+size = Vector2(219.5, 352)
 
 [sub_resource type="RectangleShape2D" id="s10"]
 size = Vector2(92, 80)
@@ -47,6 +59,12 @@ size = Vector2(167, 203)
 [sub_resource type="RectangleShape2D" id="s13"]
 size = Vector2(57, 135)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rpnu7"]
+size = Vector2(89.19867, 149.30164)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_l5u1x"]
+size = Vector2(19.817017, 82)
+
 [sub_resource type="RectangleShape2D" id="s14"]
 size = Vector2(270, 150)
 
@@ -56,140 +74,130 @@ size = Vector2(160, 35)
 [sub_resource type="RectangleShape2D" id="s16"]
 size = Vector2(50, 56)
 
-[sub_resource type="RectangleShape2D" id="s17"]
-size = Vector2(230, 190)
-
-[sub_resource type="RectangleShape2D" id="s18"]
-size = Vector2(166, 150)
-
-[sub_resource type="RectangleShape2D" id="s19"]
-size = Vector2(360, 338)
-
-[node name="SalaReator" type="Node2D"]
+[node name="SalaReator" type="Node2D" unique_id=1480017810]
 script = ExtResource("1_room")
 place_name = "Sala do reator"
 
-[node name="Fundo" type="Sprite2D" parent="."]
-centered = false
+[node name="Fundo" type="Sprite2D" parent="." unique_id=516456443]
 texture = ExtResource("4_bg")
+centered = false
 
-[node name="Colisoes" type="StaticBody2D" parent="."]
+[node name="Colisoes" type="StaticBody2D" parent="." unique_id=17045973]
 
-[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(-100, 550)
+[node name="CollisionShape2D3" type="CollisionShape2D" parent="Colisoes" unique_id=1039948842]
+position = Vector2(770, 315)
+shape = SubResource("RectangleShape2D_lknad")
+
+[node name="CollisionShape2D4" type="CollisionShape2D" parent="Colisoes" unique_id=1775464771]
+position = Vector2(1394.2468, 488.9305)
+shape = SubResource("RectangleShape2D_750e6")
+
+[node name="CollisionShape2D5" type="CollisionShape2D" parent="Colisoes" unique_id=762547635]
+position = Vector2(864, 716.05176)
+shape = SubResource("RectangleShape2D_73nwy")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Colisoes" unique_id=1924498537]
+position = Vector2(452, 866)
+shape = SubResource("RectangleShape2D_xv3bb")
+
+[node name="ParedeEsq" type="CollisionShape2D" parent="Colisoes" unique_id=314959742]
+position = Vector2(-102.5, 550)
 shape = SubResource("s0")
 
-[node name="ParedeDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1677.5, 550)
+[node name="ParedeDir" type="CollisionShape2D" parent="Colisoes" unique_id=430823409]
+position = Vector2(1670, 550)
 shape = SubResource("s1")
 
-[node name="ParedeTopo" type="CollisionShape2D" parent="Colisoes"]
+[node name="ParedeTopo" type="CollisionShape2D" parent="Colisoes" unique_id=1274753793]
 position = Vector2(800, 2.5)
 shape = SubResource("s2")
 
-[node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(800, 1152.5)
+[node name="ParedeBaixo" type="CollisionShape2D" parent="Colisoes" unique_id=666043430]
+position = Vector2(800, 1157.5)
 shape = SubResource("s3")
 
-[node name="TanquesTopoDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1260, 321)
+[node name="Banco" type="CollisionShape2D" parent="Colisoes" unique_id=309394061]
+position = Vector2(325, 310)
 shape = SubResource("s4")
 
-[node name="Nucleo" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(775, 337.5)
+[node name="RackBarris" type="CollisionShape2D" parent="Colisoes" unique_id=1997539637]
+position = Vector2(173.5, 511.5)
 shape = SubResource("s5")
 
-[node name="PlataformaEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(567.5, 546)
+[node name="CaixasBaixoEsq" type="CollisionShape2D" parent="Colisoes" unique_id=530345596]
+position = Vector2(176, 832.5)
 shape = SubResource("s6")
 
-[node name="PlataformaDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(961, 546)
+[node name="Nucleo" type="CollisionShape2D" parent="Colisoes" unique_id=1435800677]
+position = Vector2(775, 340)
 shape = SubResource("s7")
 
-[node name="MaquinasEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(190, 544)
+[node name="PlataformaEsq" type="CollisionShape2D" parent="Colisoes" unique_id=1262063353]
+position = Vector2(580, 531)
 shape = SubResource("s8")
 
-[node name="BarrisBaixoEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(266, 841)
+[node name="PlataformaDir" type="CollisionShape2D" parent="Colisoes" unique_id=1966374125]
+position = Vector2(961.25, 532)
 shape = SubResource("s9")
 
-[node name="CaixaBaixoEsq" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(454, 865)
+[node name="MaquinaMedica" type="CollisionShape2D" parent="Colisoes" unique_id=1537654079]
+position = Vector2(1368.5, 589)
 shape = SubResource("s10")
 
-[node name="CaixaTopoDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1416.5, 368.5)
+[node name="CanoBaixoDir" type="CollisionShape2D" parent="Colisoes" unique_id=19387231]
+position = Vector2(1301, 855)
 shape = SubResource("s11")
 
-[node name="ConsoleDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1371.5, 536.5)
+[node name="CaixaVerde" type="CollisionShape2D" parent="Colisoes" unique_id=1094733483]
+position = Vector2(1420, 805)
 shape = SubResource("s12")
 
-[node name="CaixaLaranja" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1426.5, 717.5)
+[node name="CaixasTopoDir" type="CollisionShape2D" parent="Colisoes" unique_id=900833431]
+position = Vector2(1416, 346.5)
 shape = SubResource("s13")
 
-[node name="EquipamentosBaixoDir" type="CollisionShape2D" parent="Colisoes"]
-position = Vector2(1295, 820)
-shape = SubResource("s14")
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Colisoes" unique_id=730610805]
+position = Vector2(346.40067, 840.6508)
+shape = SubResource("RectangleShape2D_rpnu7")
 
-[node name="Portas" type="Node2D" parent="."]
+[node name="CollisionShape2D6" type="CollisionShape2D" parent="Colisoes" unique_id=1244048760]
+position = Vector2(675.9085, 718)
+shape = SubResource("RectangleShape2D_l5u1x")
 
-[node name="Porta_cafeteria" type="Area2D" parent="Portas"]
-position = Vector2(770, 887.5)
+[node name="Portas" type="Node2D" parent="." unique_id=39225639]
+
+[node name="Porta_cafeteria" type="Area2D" parent="Portas" unique_id=581284629]
+position = Vector2(770, 895)
 script = ExtResource("2_door")
 target_room = "res://scenes/rooms/cafeteria.tscn"
 target_spawn = "from_sala_reator"
 place_name = "Cafeteria"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria"]
-shape = SubResource("s15")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_cafeteria" unique_id=454770010]
+position = Vector2(-2, 36.5)
+shape = SubResource("s14")
 
-[node name="Porta_camara_propulsao" type="Area2D" parent="Portas"]
-position = Vector2(125, 750)
-script = ExtResource("2_door")
-target_room = "res://scenes/rooms/camara_propulsao.tscn"
-target_spawn = "from_sala_reator"
-place_name = "Câmara de propulsão"
+[node name="Interativos" type="Node2D" parent="." unique_id=2022946334]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Portas/Porta_camara_propulsao"]
-shape = SubResource("s16")
-
-[node name="Interativos" type="Node2D" parent="."]
-
-[node name="PainelNucleo" type="Area2D" parent="Interativos"]
-position = Vector2(765, 595)
+[node name="PainelNucleo" type="Area2D" parent="Interativos" unique_id=1038075469]
+position = Vector2(730, 554)
 script = ExtResource("3_inter")
 action = "nucleo"
 display_name = "Núcleo"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelNucleo"]
-shape = SubResource("s17")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelNucleo" unique_id=1027417207]
+shape = SubResource("s15")
 
-[node name="KitMedico" type="Area2D" parent="Interativos"]
-position = Vector2(1373, 715)
+[node name="KitMedico" type="Area2D" parent="Interativos" unique_id=1513352169]
+position = Vector2(1342.5, 680)
 script = ExtResource("3_inter")
 action = "botiquim"
 display_name = "Kit médico"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/KitMedico"]
-shape = SubResource("s18")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/KitMedico" unique_id=1323910570]
+shape = SubResource("s16")
 
-[node name="PainelEscudos" type="Area2D" parent="Interativos"]
-position = Vector2(240, 549)
-script = ExtResource("3_inter")
-action = "escudos"
-display_name = "Escudos"
+[node name="Spawns" type="Node2D" parent="." unique_id=1885998069]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/PainelEscudos"]
-shape = SubResource("s19")
-
-[node name="Spawns" type="Node2D" parent="."]
-
-[node name="from_cafeteria" type="Marker2D" parent="Spawns"]
-position = Vector2(770, 865)
-
-[node name="from_camara_propulsao" type="Marker2D" parent="Spawns"]
-position = Vector2(195, 750)
+[node name="from_cafeteria" type="Marker2D" parent="Spawns" unique_id=1591433153]
+position = Vector2(768, 924)
