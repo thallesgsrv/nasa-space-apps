@@ -932,12 +932,11 @@ func _build_tracker() -> void:
 	_tracker_icon.gui_input.connect(_on_tracker_icon_input)
 	add_child(_tracker_icon)
 	_tracker_mark = TextureRect.new()
-	_tracker_mark.texture = preload("res://assets/ui/bandeira.png")   # bandeira do objetivo (pixel art 24x46, mostrada em 2x)
+	_tracker_mark.texture = preload("res://assets/ui/bandeira.png")   # bandeira do objetivo (arte 512x512, mostrada em 1/4)
 	_tracker_mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_tracker_mark.stretch_mode = TextureRect.STRETCH_KEEP
-	_tracker_mark.size = Vector2(24, 46)
-	_tracker_mark.scale = Vector2(2, 2)
-	_tracker_mark.pivot_offset = Vector2.ZERO
+	_tracker_mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_tracker_mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_tracker_mark.size = Vector2(128, 128)
 	_tracker_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tracker_icon.add_child(_tracker_mark)
 
@@ -1084,7 +1083,7 @@ func _process(delta: float) -> void:
 		if _tracker_open_left <= 0.0:
 			_update_tracker_visibility()
 	if _tracker_icon.visible:
-		_tracker_mark.position = Vector2(11.0, 4.0 + sin(_ui_t * 3.0) * 6.0)   # sobe e desce devagar
+		_tracker_mark.position = Vector2(-25.0, -8.0 + sin(_ui_t * 3.0) * 6.0)   # sobe e desce devagar
 	_flicker.color.a = (0.2 if int(_ui_t * 10.0) % 2 == 0 else 0.0) if Solar.inverted_left > 0.0 else 0.0
 	if _panel_active and _panel_provider.is_valid():
 		_panel_refresh += delta

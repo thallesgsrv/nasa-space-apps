@@ -10,7 +10,7 @@ const LIGHT := Color("dfe9ff")
 const GAME_SCENE := "res://scenes/cutscene_intro.tscn"
 const MENU_SCENE := "res://scenes/start_menu.tscn"
 const TEX_PANEL := preload("res://assets/ui/panel_menu.png")
-const PANEL_W := 1020.0
+const PANEL_W := 1420.0
 const PAD := 64.0           # folga entre a borda da moldura e o conteudo
 const ROW_H := 58.0
 
@@ -234,7 +234,7 @@ func _layout() -> void:
 		y += 70.0
 	else:
 		y += float(_items.size()) * ROW_H
-	# a moldura cobre a caixa desenhada no fundo (start_bg.png, x 80-760, y 330-665): altura minima 380
+	# a moldura cobre a caixa desenhada no fundo (start_bg.png, x 80-1450, y 330-665): altura minima 380
 	var h := maxf(y + 44.0, 380.0)
 	var top := minf(clampf((1024.0 - h) / 2.0 - 20.0, 60.0, 400.0), 300.0)
 	_panel.size = Vector2(PANEL_W, h)
