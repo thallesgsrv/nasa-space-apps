@@ -22,6 +22,8 @@ var shield_on := false
 var resolved := false
 var inverted_left := 0.0
 var last_result := ""
+var source_tag := ""          # selo de origem (MissionState.TAG_*)
+var source_label := ""        # explicacao da origem mostrada no terminal e no relatorio
 
 var _t := 0.0
 
@@ -37,12 +39,20 @@ func reset() -> void:
 	resolved = false
 	inverted_left = 0.0
 	last_result = ""
+	source_tag = ""
+	source_label = ""
 	changed.emit()
 
 
 ## Cria a CME desta missao (chamado quando a missao comeca).
 func generate() -> void:
 	reset()
+	var ev := NasaFeed.pick_flare() if randf() < 0.6 else {}
+	if not ev.is_empty():
+		_generate_from_event(ev)
+		return
+	source_tag = MissionState.TAG_RISK
+	source_label = tr("RISCO REAL: tempestades solares existem; os valores desta são simulados.")
 	if randf() < 0.5:   # tempestade que realmente atinge a nave
 		base_flux = randf_range(6.5, 9.5)
 		base_angle = randf_range(-14.0, 14.0)
@@ -53,6 +63,21 @@ func generate() -> void:
 		base_flux = randf_range(6.5, 9.5)
 		base_angle = (1.0 if randf() < 0.5 else -1.0) * randf_range(30.0, 70.0)
 	real = base_flux >= HIT_FLUX and absf(base_angle) <= HIT_ANGLE
+	changed.emit()
+
+
+## Tempestade baseada em um registro real (NasaFeed): a intensidade vem do registro, a direcao e simulada.
+func _generate_from_event(ev: Dictionary) -> void:
+	base_flux = float(ev["flux"])
+	if base_flux >= HIT_FLUX and randf() < 0.6:
+		base_angle = randf_range(-14.0, 14.0)
+	elif base_flux >= HIT_FLUX:
+		base_angle = (1.0 if randf() < 0.5 else -1.0) * randf_range(30.0, 70.0)
+	else:
+		base_angle = randf_range(-15.0, 15.0)
+	real = base_flux >= HIT_FLUX and absf(base_angle) <= HIT_ANGLE
+	source_tag = String(ev["tag"])
+	source_label = String(ev["label"])
 	changed.emit()
 
 
@@ -84,6 +109,8 @@ func terminal_text() -> String:
 	var lines: Array[String] = [tr("TERMINAL SOLAR - CME"), ""]
 	lines.append(tr("Fluxo de raios-X:      %.1f") % live_flux())
 	lines.append(tr("Ângulo da trajetória:  %+.0f graus  (0 = direto na rota da nave)") % live_angle())
+	if source_label != "":
+		lines.append(tr("Origem: ") + source_label)
 	lines.append("")
 	lines.append(tr("MANUAL DE LIMITE SEGURO"))
 	lines.append(tr("A tempestade atinge a nave se o fluxo for MAIOR OU IGUAL a %.1f") % HIT_FLUX)
@@ -98,6 +125,7 @@ func terminal_text() -> String:
 func decide(send_alert: bool) -> Array:
 	if Net.is_client():
 		return await Net.call_host("Solar", "decide", [send_alert], [])
+	MissionState.stat_inc("base_actions")
 	if decided:
 		return [tr("A decisão já foi tomada.")]
 	decided = true
@@ -148,6 +176,9 @@ func _resolve() -> void:
 		last_result = tr("Era alarme falso e os escudos não foram ligados. Nada aconteceu.")
 	else:
 		last_result = tr("Falso alarme descartado corretamente. Nada aconteceu.")
+	MissionState.log_event("cme", source_tag if source_tag != "" else MissionState.TAG_RISK, tr("Tempestade solar (CME)") + ": " + source_label)
+	MissionState.set_outcome("cme", not (real and not (alert_sent and shield_on)), last_result)
+	MissionState.stat_set("cme_safe", not (real and not (alert_sent and shield_on)))
 	Missions.complete("solar")     # (ja concluida se a base decidiu; ignora se fora de ordem)
 	Missions.complete("escudos")
 	GameState.notice.emit(last_result)

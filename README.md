@@ -43,6 +43,13 @@ Game over: núcleo a 100% por 12 s, falha da viagem (energia, combustível, temp
 - `scripts/audio.gd` (`Audio`): música por sala e efeitos. Salas sem arquivo em `assets/audio/music/` ficam em silêncio.
 - `scenes/`: menu, cutscene, jogo e as salas (`rooms/`, `baseterrestre/`).
 
+## Missão conectada (planejamento na Terra → voo → retorno → relatório)
+- **Planejamento (CML 1 a 9)**: ao começar (depois do tutorial) o host escolhe *Planejar a missão* ou *Missão rápida* (= jogo antigo). Cada CML é uma decisão com custo/efeito e grava em `MissionState.params` (créditos, massa, capacidade do foguete, consumo, combustível, confiabilidade, comunicação, risco, peças, ciência). Código: `scripts/mission_state.gd` (autoload `MissionState`).
+- **Consequências no voo**: `Voyage.start` usa massa/combustível/consumo/margem do projeto; o risco muda a chance de evento; os riscos **aceitos** no CML 7 aumentam a chance do evento correspondente; peça reserva (CML 4) amortece o superaquecimento do reator; comunicação (CML 3/5) afeta blecautes e a dica de reentrada.
+- **Selos de origem** (REAL / RISCO / FICT): nenhum evento fictício é apresentado como registro da NASA. A tempestade solar usa registros reais de erupções (`data/space_events.json`, intensidade real, direção simulada) ou um feed vivo.
+- **Feed NASA** (`scripts/nasa_feed.gd`): o jogo nunca chama `api.nasa.gov` direto. `tools/nasa_feed_proxy.py` (roda no servidor, com `NASA_API_KEY`) gera um JSON a partir do DONKI; sirva-o como arquivo estático e defina `NASA_FEED_URL` (ou a setting `nasa/feed_url`). Sem feed, o arquivo local é usado.
+- **Retorno e relatório**: missão final *Retorno à Terra* na cadeira de comando (checklist, janela, reentrada) e relatório pós-missão (também mostrado à base no multiplayer e salvo em `user://last_report.json`).
+
 ## Testes
 Testes automatizados headless (regras das missões, viagem, reinício, game over, todas as salas, objetos e minigames):
 

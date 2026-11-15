@@ -22,6 +22,7 @@ var _on_earth := false
 var _saved_room := ""         # sala da estacao onde o astronauta ficou
 var _saved_pos := Vector2.ZERO
 var _partner_label: Label   # multiplayer: quem e o parceiro e onde ele esta
+var _report_shown := false
 
 
 func _ready() -> void:
@@ -50,11 +51,14 @@ func _ready() -> void:
 	await _fade_to(0.0)
 	if Net.is_client():
 		UI.toast(tr("Você é a BASE na Terra (cientista). Seu parceiro é o astronauta na estação."), 6.0)
+		MissionState.changed.connect(_show_report_for_client)
 		return   # tutorial e missoes sao conduzidos pelo host
 	if not GameState.tutorial_done:
 		GameState.tutorial_done = true
 		player.locked = true
 		await Interactions.show_tutorial()
+		if not MissionState.planned and not MissionState.planning_disabled:
+			await MissionState.run_planning()   # fase na Terra: CML 1 a 9 (ou plano padrao)
 		player.locked = false
 		if Missions.active == "" and Missions.finished.is_empty():
 			Missions.start("bionutrientes")
@@ -221,6 +225,14 @@ func _refresh_partner_label() -> void:
 	var where := tr(Net.partner_room) if Net.partner_room != "" else tr("conectado")
 	_partner_label.text = "%s: %s" % [role, where]
 	_partner_label.visible = Net.has_partner()
+
+
+# multiplayer: o relatorio final tambem aparece para a base (o host o gera e ele chega pelo espelho).
+func _show_report_for_client() -> void:
+	if _report_shown or MissionState.report.is_empty():
+		return
+	_report_shown = true
+	await UI.show_panel(String(MissionState.report.get("text", "")))
 
 
 func _on_partner_left() -> void:

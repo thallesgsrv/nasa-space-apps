@@ -83,6 +83,7 @@ func reset() -> void:
 	tutorial_done = false
 	_heat_warned = false
 	Missions.reset()
+	MissionState.reset()
 	Voyage.reset()
 	Solar.reset()
 	UI.reset()
