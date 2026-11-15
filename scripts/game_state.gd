@@ -40,7 +40,7 @@ const ITEMS := {
 }
 
 var running := false  # so conta tempo durante a partida
-var aboard := true    # ja pisou na nave? Antes disso (jogo solo comeca na Terra) nada esquenta nem da fome
+var aboard := true    # o astronauta pode se mover na nave? (false enquanto o jogador esta na Terra: o reator nao esquenta)
 var food := 100.0
 var thirst := 100.0
 var sleep := 100.0
@@ -113,7 +113,7 @@ func _process(delta: float) -> void:
 		if capsule_left <= 0.0:
 			_capsule_arrived()
 	if not aboard:
-		return  # ainda na Terra: o nucleo so comeca a esquentar (e a fome a bater) depois da 1a vez na nave
+		return  # o astronauta nao esta se movendo na nave: o nucleo nao esquenta nem a fome bate
 	if UI.busy and not UI.realtime:
 		return  # menus e dialogos congelam o tempo das necessidades
 	food = maxf(0.0, food - FOOD_DECAY * delta)

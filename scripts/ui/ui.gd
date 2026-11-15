@@ -38,6 +38,10 @@ var busy: bool:
 # HUD
 var _hud: Control
 var _credits_box: Control
+var _warn_food: Label
+var _warn_thirst: Label
+var _vitals_visible := true
+var _timers: Dictionary = {}
 var _credits_label: Label
 var _bars: Dictionary = {}       # nome -> ColorRect (preenchimento)
 var _hp_fill: ColorRect
@@ -107,6 +111,7 @@ func _ready() -> void:
 	_build_hud()
 	_build_dialog()
 	_build_menu()
+	_build_blur()
 	_build_toast()
 	_build_panel()
 	_build_tracker()
@@ -179,6 +184,8 @@ func dismiss_all() -> void:
 
 ## Nova partida: devolve a interface ao estado inicial (sem travas, sem telas abertas, tempo normal).
 func reset() -> void:
+	if paused_game:
+		pause_game(false)
 	_locks = 0
 	realtime = false
 	_dismissing = false
@@ -207,6 +214,8 @@ func retranslate() -> void:
 
 ## Vida e necessidades (comida, sono, agua) so existem para quem esta na nave; o cientista da Terra nao tem.
 func show_vitals(v: bool) -> void:
+	_vitals_visible = v
+	_refresh_hud()
 	for fill in _bars.values():
 		fill.get_parent().visible = v
 	_hp_fill.get_parent().visible = v
@@ -388,11 +397,66 @@ func timer_bar(text: String, seconds: float) -> void:
 	fill.size = Vector2(0, 20)
 	box.add_child(fill)
 	var tw := create_tween()
+	tw.set_pause_mode(Tween.TWEEN_PAUSE_STOP)   # a pausa do jogo congela a producao
 	tw.tween_method(func(v: float):
 		fill.size.x = 150.0 * v
 		lab.text = "%s %d s" % [text, ceili(seconds * (1.0 - v))], 0.0, 1.0, seconds)
 	await tw.finished
 	box.queue_free()
+
+
+# ---- pausa: congela a arvore (animacoes, fisica, relogios), pausa a musica e desfoca o fundo
+const BLUR_SHADER := """
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform float lod = 0.0;
+uniform float dim = 0.0;
+void fragment() {
+	vec4 c = textureLod(screen_tex, SCREEN_UV, lod);
+	COLOR = vec4(c.rgb * (1.0 - dim), 1.0);
+}
+"""
+var _blur: ColorRect
+var _blur_tween: Tween
+var paused_game := false
+
+
+func _build_blur() -> void:
+	_blur = ColorRect.new()
+	_blur.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_blur.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blur.visible = false
+	var sh := Shader.new()
+	sh.code = BLUR_SHADER
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	_blur.material = mat
+	add_child(_blur)
+	move_child(_blur, _menu.get_index())
+
+
+## Liga/desliga a pausa de verdade. Offline congela a arvore inteira; online so desfoca e silencia
+## (outros jogadores continuam jogando).
+func pause_game(v: bool) -> void:
+	paused_game = v
+	Audio.set_paused(v)
+	if not Net.is_online():
+		get_tree().paused = v
+	if _blur_tween:
+		_blur_tween.kill()
+	var mat := _blur.material as ShaderMaterial
+	if v:
+		_blur.visible = true
+		_blur_tween = create_tween()
+		_blur_tween.tween_method(func(x: float):
+			mat.set_shader_parameter("lod", 3.0 * x)
+			mat.set_shader_parameter("dim", 0.25 * x), 0.0, 1.0, 0.25)
+	else:
+		_blur_tween = create_tween()
+		_blur_tween.tween_method(func(x: float):
+			mat.set_shader_parameter("lod", 3.0 * x)
+			mat.set_shader_parameter("dim", 0.25 * x), 1.0, 0.0, 0.15)
+		_blur_tween.tween_callback(func(): _blur.visible = false)
 
 
 ## Opcoes (menu inicial e menu de pausa): idioma. A escolha fica salva (Lang).
@@ -416,10 +480,16 @@ func choose(options: Array, title: String = "") -> int:
 
 func toast(text: String, seconds: float = 3.0) -> void:
 	_toast_label.text = text
-	var w := FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x + 80.0
-	_toast.size = Vector2(w, 64)
+	# largura maxima: mensagens longas quebram linha em vez de sair da tela
+	var text_w := FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+	var w := minf(text_w + 80.0, 1180.0)
+	var lines := maxi(1, ceili(text_w / (w - 80.0)))
+	var h := 64.0 + float(lines - 1) * 30.0
+	_toast.size = Vector2(w, h)
 	_toast.position = Vector2((VIEW.x - w) / 2.0, 24)
 	_toast_label.size = _toast.size
+	_toast_label.position = Vector2.ZERO
+	_toast_label.custom_minimum_size = _toast.size
 	_toast.visible = true
 	_toast.modulate.a = 1.0
 	if _toast_tween:
@@ -479,6 +549,24 @@ func _build_hud() -> void:
 		_bars[d[0]] = _make_bar(Vector2(x, 944), Vector2(pw, 64), d[1], d[2])
 	# vida (canto superior esquerdo)
 	_hp_fill = _make_bar(Vector2(20, 20), Vector2(pw, 64), "VIDA", Color("e04a4a"))
+	_build_timers()
+	# avisos fixos de fome/sede (piscam acima das barras)
+	for k in ["food", "thirst"]:
+		var w := _label(tr("COM FOME!") if k == "food" else tr("COM SEDE!"), 26)
+		w.set_meta("k", "COM FOME!" if k == "food" else "COM SEDE!")
+		_static_labels.append(w)
+		w.add_theme_color_override("font_color", Color("e02020"))
+		w.add_theme_color_override("font_outline_color", Color.WHITE)
+		w.add_theme_constant_override("outline_size", 8)
+		w.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		w.size = Vector2(pw, 34)
+		w.position = Vector2(x0 if k == "food" else x0 + 2.0 * (pw + gap), 902)
+		w.visible = false
+		_hud.add_child(w)
+		if k == "food":
+			_warn_food = w
+		else:
+			_warn_thirst = w
 	# creditos da missao (sempre na tela: o que sobra vira pontos no relatorio)
 	_credits_box = NinePatchRect.new()
 	_credits_box.texture = TEX_BAR
@@ -536,6 +624,8 @@ func _refresh_hud() -> void:
 	_set_fill(_bars["thirst"], GameState.thirst)
 	_set_fill(_hp_fill, GameState.health)
 	_credits_label.text = str(int(MissionState.p("credits")))
+	_warn_food.visible = _vitals_visible and GameState.food < 30.0
+	_warn_thirst.visible = _vitals_visible and GameState.thirst < 30.0
 
 
 func _set_fill(fill: ColorRect, value: float) -> void:
@@ -705,6 +795,7 @@ func _build_toast() -> void:
 	_toast_label = _label("", 24)
 	_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_toast.add_child(_toast_label)
 
 
@@ -809,6 +900,52 @@ func _build_voyage() -> void:
 		_voyage_bars[d[0]] = fill
 
 
+# Barras de tempo fixas: aquecimento dos pacotes e viagem da capsula (producao usa timer_bar).
+func _build_timers() -> void:
+	for k in ["heat", "capsule"]:
+		var box := NinePatchRect.new()
+		box.texture = TEX_BAR
+		for side in ["left", "right", "top", "bottom"]:
+			box.set("patch_margin_" + side, 20)
+		box.size = Vector2(470, 64)
+		box.position = Vector2(440.0, 100.0 if k == "heat" else 174.0)   # sob os creditos, longe do rastreador (direita)
+		box.visible = false
+		_hud.add_child(box)
+		var lab := _label("", 20)
+		lab.position = Vector2(24, 20)
+		box.add_child(lab)
+		var bg := ColorRect.new()
+		bg.color = Color(INK, 0.35)
+		bg.position = Vector2(470.0 - 190.0, 22)
+		bg.size = Vector2(150, 20)
+		box.add_child(bg)
+		var fill := ColorRect.new()
+		fill.color = Color("e07a3a") if k == "heat" else Color("3aa6e8")
+		fill.position = bg.position
+		fill.size = Vector2(0, 20)
+		box.add_child(fill)
+		_timers[k] = {"box": box, "label": lab, "fill": fill}
+
+
+func _refresh_timers() -> void:
+	if _timers.is_empty():
+		return
+	var heating: bool = Missions.heater_state == "heating"
+	var h: Dictionary = _timers["heat"]
+	(h["box"] as Control).visible = heating
+	if heating:
+		var f := 1.0 - clampf(Missions.heating_left / Missions.HEAT_TIME, 0.0, 1.0)
+		(h["fill"] as ColorRect).size.x = 150.0 * f
+		(h["label"] as Label).text = tr("Aquecendo... %d s") % ceili(Missions.heating_left)
+	var travelling: bool = GameState.capsule_item != "" and not GameState.capsule_hold
+	var c: Dictionary = _timers["capsule"]
+	(c["box"] as Control).visible = travelling
+	if travelling:
+		var f2 := 1.0 - clampf(GameState.capsule_left / GameState.CAPSULE_TIME, 0.0, 1.0)
+		(c["fill"] as ColorRect).size.x = 150.0 * f2
+		(c["label"] as Label).text = tr("Cápsula... %d s") % ceili(GameState.capsule_left)
+
+
 func _refresh_voyage() -> void:
 	_voyage.visible = Voyage.active and _hud.visible
 	if not _voyage.visible:
@@ -850,6 +987,10 @@ func _on_tracker_icon_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_ui_t += delta
+	_refresh_timers()
+	var blink := 0.55 + 0.45 * sin(_ui_t * 8.0)
+	_warn_food.modulate.a = blink
+	_warn_thirst.modulate.a = blink
 	if _tracker_open_left > 0.0:
 		_tracker_open_left -= delta
 		if _tracker_open_left <= 0.0:

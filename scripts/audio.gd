@@ -89,6 +89,16 @@ func resume_music() -> void:
 		play_room(r)
 
 
+## Pausa/retoma a musica e os efeitos (menu de pausa).
+func set_paused(v: bool) -> void:
+	for p in _music:
+		p.stream_paused = v
+	for p in _sfx:
+		p.stream_paused = v
+	if _cd_started:
+		_cd.stream_paused = v
+
+
 ## Som da contagem do nucleo: o arquivo termina na explosao, entao ele entra quando faltam
 ## "duracao do arquivo" segundos e fica sincronizado com a contagem (pausa junto com os menus).
 ## remaining < 0 = sem contagem (para o som).

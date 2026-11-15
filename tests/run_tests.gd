@@ -449,7 +449,7 @@ func _test_every_interaction_and_minigame() -> void:
 	await get_tree().create_timer(0.7).timeout   # espera o fade e o menu do tutorial abrirem
 	UI.dismiss_all()   # fecha o tutorial
 	await get_tree().create_timer(0.1).timeout
-	check(game._on_earth and game._room.room_id() == "laboratorio" and game.player == game.scientist, "o jogo solo COMECA na Terra (laboratorio, como cientista)")
+	check(not game._on_earth and game._room.room_id() == "cafeteria" and game.player == game.astronaut, "o jogo solo comeca na estacao (cafeteria); a Terra fica na tecla 1")
 	var rooms: Array = []
 	for f in DirAccess.get_files_at("res://scenes/rooms"):
 		if f.ends_with(".tscn"):

@@ -100,5 +100,8 @@ func _open_lobby() -> void:
 func _start_game() -> void:
 	_starting = true
 	GameState.reset()
+	# tela inicial: o planejamento da missao (CML 1-9) vem ANTES da cutscene; depois o jogo comeca na estacao
+	if not MissionState.planning_disabled:
+		await MissionState.run_planning()
 	await UI.fade_to(1.0, 0.5)
 	get_tree().change_scene_to_file(GAME_SCENE)

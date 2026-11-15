@@ -720,6 +720,10 @@ const EN := {
 	"Risco": "Risk",
 	"Consumo de energia": "Energy use",
 	"Peças reserva": "Spare parts",
+	"COM FOME!": "HUNGRY!",
+	"COM SEDE!": "THIRSTY!",
+	"Aquecendo... %d s": "Heating... %d s",
+	"Cápsula... %d s": "Capsule... %d s",
 }
 
 var language := "pt"
