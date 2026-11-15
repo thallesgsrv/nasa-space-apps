@@ -346,7 +346,7 @@ func _show_report_for_client() -> void:
 	if _report_shown or MissionState.report.is_empty():
 		return
 	_report_shown = true
-	await UI.show_panel(String(MissionState.report.get("text", "")))
+	await UI.show_report()
 
 
 func _on_partner_left() -> void:

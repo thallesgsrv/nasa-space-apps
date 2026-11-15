@@ -15,6 +15,8 @@ const PETRI := preload("res://scripts/ui/petri_game.gd")
 const DODGE := preload("res://scripts/ui/ship_dodge.gd")
 const MICROSCOPE := preload("res://scripts/ui/microscope_game.gd")
 const PLANNING := preload("res://scripts/ui/planning_board.gd")
+const DECISION := preload("res://scripts/ui/decision_board.gd")
+const REPORT := preload("res://scripts/ui/report_screen.gd")
 const MURAL := preload("res://scripts/ui/formula_mural.gd")
 const REAGENT := preload("res://scripts/ui/reagent_game.gd")
 
@@ -38,6 +40,7 @@ var busy: bool:
 # HUD
 var _hud: Control
 var _credits_box: Control
+var _dialog_box: NinePatchRect
 var _warn_food: Label
 var _warn_thirst: Label
 var _vitals_visible := true
@@ -46,7 +49,7 @@ var _credits_label: Label
 var _bars: Dictionary = {}       # nome -> ColorRect (preenchimento)
 var _hp_fill: ColorRect
 var _static_labels: Array[Label] = []   # textos fixos que mudam quando o idioma muda
-const BAR_W := 160.0
+const BAR_W := 220.0
 
 # dialogo
 var _dialog: Control
@@ -150,6 +153,10 @@ func _ready() -> void:
 	Voyage.changed.connect(_refresh_voyage)
 	Solar.changed.connect(_refresh_solar)
 	Lang.changed.connect(retranslate)
+	# camadas (de baixo para cima): HUD e avisos fixos < blur < dialogo/menu/painel < aviso curto < fade
+	var order: Array = [_hud, _tracker, _tracker_icon, _voyage, _solar_alarm, _flicker, _alarm, _blur, _dialog, _menu, _panel, _toast, _fade]
+	for k in order.size():
+		move_child(order[k], k)
 	show_hud(false)
 	_refresh_hud()
 
@@ -328,6 +335,31 @@ func open_planning() -> Control:
 	return g
 
 
+## Relatorio pos-missao (3 paginas graficas).
+func show_report() -> void:
+	var g = REPORT.new()
+	g.configure()
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
+	lock()
+	await g.closed
+	g.queue_free()
+	unlock()
+
+
+## Telas graficas da base (hub, solar, monitor, forecast, asteroid): devolve o indice do cartao escolhido.
+func run_board(kind: String, cards: Array, info: Dictionary = {}) -> int:
+	var g = DECISION.new()
+	g.configure(kind, info)
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
+	lock()
+	var i: int = await g.choose(cards)
+	g.queue_free()
+	unlock()
+	return i
+
+
 ## Minigames do laboratorio (Terra): microscopio, mural de formulas e preparo de reagente.
 ## Cada um tem o sinal closed e o dicionario result; espere g.closed e depois g.queue_free().
 func open_microscope(diff: int) -> Control:
@@ -368,7 +400,7 @@ func open_grid(kind: String) -> Control:
 	var g = GRID.new()
 	g.configure(kind)
 	_add_overlay(g)
-	move_child(g, _hud.get_index() + 1)  # fica atras do menu de escolha, dialogo e avisos
+	move_child(g, _dialog.get_index())  # acima do blur, atras do menu de escolha e do dialogo
 	return g
 
 
@@ -442,20 +474,39 @@ func pause_game(v: bool) -> void:
 	Audio.set_paused(v)
 	if not Net.is_online():
 		get_tree().paused = v
+
+
+# Nivel do desfoque do fundo: 2 = pausa, 1 = menu/painel/tela aberta, 0 = nenhum.
+var _blur_level := 0
+
+
+func _want_blur() -> int:
+	if paused_game:
+		return 2
+	if _menu_active or _panel_active or not get_tree().get_nodes_in_group(OVERLAY_GROUP).is_empty():
+		return 1
+	return 0
+
+
+func _update_blur() -> void:
+	var want := _want_blur()
+	if want == _blur_level:
+		return
+	_blur_level = want
 	if _blur_tween:
 		_blur_tween.kill()
 	var mat := _blur.material as ShaderMaterial
-	if v:
+	var from_lod := float(mat.get_shader_parameter("lod") if mat.get_shader_parameter("lod") != null else 0.0)
+	var from_dim := float(mat.get_shader_parameter("dim") if mat.get_shader_parameter("dim") != null else 0.0)
+	var to_lod: float = [0.0, 2.2, 3.0][want]
+	var to_dim: float = [0.0, 0.15, 0.25][want]
+	if want > 0:
 		_blur.visible = true
-		_blur_tween = create_tween()
-		_blur_tween.tween_method(func(x: float):
-			mat.set_shader_parameter("lod", 3.0 * x)
-			mat.set_shader_parameter("dim", 0.25 * x), 0.0, 1.0, 0.25)
-	else:
-		_blur_tween = create_tween()
-		_blur_tween.tween_method(func(x: float):
-			mat.set_shader_parameter("lod", 3.0 * x)
-			mat.set_shader_parameter("dim", 0.25 * x), 1.0, 0.0, 0.15)
+	_blur_tween = create_tween()
+	_blur_tween.tween_method(func(x: float):
+		mat.set_shader_parameter("lod", lerpf(from_lod, to_lod, x))
+		mat.set_shader_parameter("dim", lerpf(from_dim, to_dim, x)), 0.0, 1.0, 0.18)
+	if want == 0:
 		_blur_tween.tween_callback(func(): _blur.visible = false)
 
 
@@ -487,9 +538,9 @@ func toast(text: String, seconds: float = 3.0) -> void:
 	var h := 64.0 + float(lines - 1) * 30.0
 	_toast.size = Vector2(w, h)
 	_toast.position = Vector2((VIEW.x - w) / 2.0, 24)
-	_toast_label.size = _toast.size
+	_toast_label.custom_minimum_size = Vector2.ZERO
 	_toast_label.position = Vector2.ZERO
-	_toast_label.custom_minimum_size = _toast.size
+	_toast_label.size = _toast.size
 	_toast.visible = true
 	_toast.modulate.a = 1.0
 	if _toast_tween:
@@ -536,9 +587,9 @@ func _build_hud() -> void:
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hud)
 	var defs := [
-		["food", "COMIDA", Color("e8a13a")],
-		["sleep", "SONO", Color("8a78e8")],
-		["thirst", "ÁGUA", Color("3aa6e8")],
+		["food", "comida", Color("e8a13a")],
+		["sleep", "sono", Color("8a78e8")],
+		["thirst", "agua", Color("3aa6e8")],
 	]
 	var pw := 330.0
 	var gap := 24.0
@@ -548,7 +599,7 @@ func _build_hud() -> void:
 		var x := x0 + i * (pw + gap)
 		_bars[d[0]] = _make_bar(Vector2(x, 944), Vector2(pw, 64), d[1], d[2])
 	# vida (canto superior esquerdo)
-	_hp_fill = _make_bar(Vector2(20, 20), Vector2(pw, 64), "VIDA", Color("e04a4a"))
+	_hp_fill = _make_bar(Vector2(20, 20), Vector2(pw, 64), "vida", Color("e04a4a"))
 	_build_timers()
 	# avisos fixos de fome/sede (piscam acima das barras)
 	for k in ["food", "thirst"]:
@@ -587,7 +638,7 @@ func _build_hud() -> void:
 	_credits_box.add_child(_credits_label)
 
 
-func _make_bar(pos: Vector2, size: Vector2, text: String, color: Color) -> ColorRect:
+func _make_bar(pos: Vector2, size: Vector2, icon: String, color: Color) -> ColorRect:
 	var box := NinePatchRect.new()
 	box.texture = TEX_BAR
 	for side in ["left", "right", "top", "bottom"]:
@@ -595,11 +646,14 @@ func _make_bar(pos: Vector2, size: Vector2, text: String, color: Color) -> Color
 	box.position = pos
 	box.size = size
 	_hud.add_child(box)
-	var lab := _label(tr(text), 24)
-	lab.set_meta("k", text)
-	_static_labels.append(lab)
-	lab.position = Vector2(26, 18)
-	box.add_child(lab)
+	# icone no lugar do texto (assets/ui/icon_<nome>.png)
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/ui/icon_%s.png" % icon)
+	ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ic.stretch_mode = TextureRect.STRETCH_KEEP
+	ic.position = Vector2(16, 4)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(ic)
 	var bg := ColorRect.new()
 	bg.color = Color(INK, 0.35)
 	bg.position = Vector2(size.x - BAR_W - 28, 22)
@@ -645,19 +699,35 @@ func _build_dialog() -> void:
 	for side in ["left", "right", "top", "bottom"]:
 		box.set("patch_margin_" + side, 36)
 	box.size = _dialog.size
+	_dialog_box = box
 	_dialog.add_child(box)
 	_dialog_text = _label("", 32)
-	_dialog_text.position = Vector2(64, 40)
-	_dialog_text.size = Vector2(1152, 160)
+	_dialog_text.position = Vector2(84, 54)
+	_dialog_text.size = Vector2(1112, 140)
 	_dialog_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dialog_text.add_theme_constant_override("line_spacing", 10)
 	_dialog.add_child(_dialog_text)
 	_dialog_arrow = _label("[F]", 24)
-	_dialog_arrow.position = Vector2(1130, 192)
+	_dialog_arrow.position = Vector2(1120, 190)
 	_dialog_arrow.visible = false
 	_dialog.add_child(_dialog_arrow)
 
 
+# A caixa do dialogo (NinePatchRect) cresce para cima conforme o texto, com folga nas bordas.
+func _fit_dialog(text: String) -> void:
+	var w := 1112.0
+	var sz := FONT.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, w, 32)
+	var lines := maxi(1, roundi(sz.y / FONT.get_height(32)))
+	var h := clampf(float(lines) * (FONT.get_height(32) + 10.0) + 112.0, 240.0, 460.0)
+	_dialog.size = Vector2(1280, h)
+	_dialog_box.size = _dialog.size
+	_dialog.position.y = 930.0 - h
+	_dialog_text.size = Vector2(w, h - 100.0)
+	_dialog_arrow.position = Vector2(1120, h - 50.0)
+
+
 func _show_line(text: String) -> void:
+	_fit_dialog(text)
 	_dialog_text.text = text
 	_dialog_text.visible_characters = 0
 	_dialog_arrow.visible = false
@@ -709,24 +779,24 @@ func _open_menu(options: Array, title: String) -> void:
 	for r in _menu_rows:
 		r.queue_free()
 	_menu_rows.clear()
-	var row_h := 52.0
+	var row_h := 60.0
 	var width := 0.0
 	if title != "":
 		width = FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x
 	for o in options:
 		width = maxf(width, FONT.get_string_size(str(o), HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x)
-	var w := width + 150.0
-	var top := 36.0 + (56.0 if title != "" else 0.0)
-	var h := top + options.size() * row_h + 30.0
+	var w := width + 200.0
+	var top := 46.0 + (64.0 if title != "" else 0.0)
+	var h := top + options.size() * row_h + 40.0
 	_menu_box.size = Vector2(w, h)
 	_menu.size = Vector2(w, h)
 	_menu.position = Vector2(VIEW.x - w - 90.0, 640.0 - h)
 	_menu_title.text = title
 	_menu_title.visible = title != ""
-	_menu_title.position = Vector2(56, 30)
+	_menu_title.position = Vector2(64, 38)
 	for i in options.size():
 		var lab := _label(str(options[i]), 32)
-		lab.position = Vector2(92, top + i * row_h)
+		lab.position = Vector2(104, top + i * row_h)
 		_menu.add_child(lab)
 		_menu_rows.append(lab)
 	_menu.set_meta("top", top)
@@ -819,9 +889,10 @@ func _build_panel() -> void:
 	box.size = Vector2(1240, 820)
 	_panel.add_child(box)
 	_panel_text = _label("", 24)
-	_panel_text.position = Vector2(200, 150)
-	_panel_text.size = Vector2(1136, 720)
+	_panel_text.position = Vector2(230, 170)
+	_panel_text.size = Vector2(1076, 680)
 	_panel_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_panel_text.add_theme_constant_override("line_spacing", 10)
 	_panel.add_child(_panel_text)
 
 
@@ -841,6 +912,7 @@ func _build_tracker() -> void:
 	_tracker_label.position = Vector2(30, 18)
 	_tracker_label.size = Vector2(540, 90)
 	_tracker_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tracker_label.add_theme_constant_override("line_spacing", 6)
 	_tracker.add_child(_tracker_label)
 	# icone recolhido: losango "!" subindo e descendo (clique ou V mostram a mensagem de novo)
 	_tracker_icon = Control.new()
@@ -992,6 +1064,7 @@ func _on_tracker_icon_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_ui_t += delta
+	_update_blur()
 	_refresh_timers()
 	var blink := 0.55 + 0.45 * sin(_ui_t * 8.0)
 	_warn_food.modulate.a = blink

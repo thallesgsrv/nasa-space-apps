@@ -482,6 +482,12 @@ func _test_every_interaction_and_minigame() -> void:
 		"mural de formulas": func(): return UI.open_mural(false),
 		"mural de formulas (dificil)": func(): return UI.open_mural(true),
 		"reagente": func(): return UI.open_reagent(1),
+		"base: hub": func(): return _open_board("hub"),
+		"base: terminal solar": func(): return _open_board("solar"),
+		"base: monitor": func(): return _open_board("monitor"),
+		"base: previsao": func(): return _open_board("forecast"),
+		"base: asteroide": func(): return _open_board("asteroid", {"speed": 8.0, "dist": 200}),
+		"relatorio final": func(): return _open_report(),
 		"mochila": func(): return UI.open_grid("inventory"),
 		"armario": func(): return UI.open_grid("storage"),
 	}
@@ -839,3 +845,19 @@ func _test_new_rules() -> void:
 	# voto do CML 1 em modo automatico segue a escolha
 	MissionState.reset()
 	GameState.reset()
+
+
+func _open_board(kind: String, info: Dictionary = {}) -> Control:
+	Solar.generate()
+	var g = UI.DECISION.new()
+	g.configure(kind, info)
+	UI._add_overlay(g)
+	return g
+
+
+func _open_report() -> Control:
+	MissionState.report = MissionState.build_report()
+	var g = UI.REPORT.new()
+	g.configure()
+	UI._add_overlay(g)
+	return g

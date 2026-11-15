@@ -39,6 +39,7 @@ var _rocks: Array = []         # [{node, vel, r, spin}]
 var _exhaust: CPUParticles2D
 var _hud: Label
 var _msg: Label
+var _exit_btn: Button
 var _bar: ColorRect
 var _bar_bg: ColorRect
 
@@ -79,17 +80,29 @@ func configure(play_free: bool = false) -> void:
 	_ship.z_index = 5
 	add_child(_ship)
 	_exhaust = CPUParticles2D.new()
-	_exhaust.position = Vector2(-SHIP.get_width() * 0.5, 0)
+	_exhaust.position = Vector2(-112, 6)          # bocal do motor (a nave olha para a direita)
 	_exhaust.amount = 40
-	_exhaust.lifetime = 0.45
-	_exhaust.local_coords = false
+	_exhaust.lifetime = 0.32
+	_exhaust.local_coords = true                   # a chama acompanha a nave (nao vira um fio no ar)
 	_exhaust.direction = Vector2(-1, 0)
-	_exhaust.spread = 12.0
-	_exhaust.initial_velocity_min = 160.0
-	_exhaust.initial_velocity_max = 260.0
-	_exhaust.scale_amount_min = 3.0
-	_exhaust.scale_amount_max = 6.0
-	_exhaust.color = Color("ff9a3a")
+	_exhaust.spread = 7.0
+	_exhaust.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	_exhaust.emission_sphere_radius = 9.0
+	_exhaust.initial_velocity_min = 260.0
+	_exhaust.initial_velocity_max = 380.0
+	_exhaust.damping_min = 40.0
+	_exhaust.damping_max = 90.0
+	_exhaust.scale_amount_min = 24.0
+	_exhaust.scale_amount_max = 34.0
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 1.0))
+	curve.add_point(Vector2(1.0, 0.15))
+	_exhaust.scale_amount_curve = curve
+	var ramp := Gradient.new()
+	ramp.colors = PackedColorArray([Color("fff6c8"), Color("ffb02e"), Color("e0481c"), Color(0.55, 0.1, 0.1, 0.0)])
+	ramp.offsets = PackedFloat32Array([0.0, 0.3, 0.7, 1.0])
+	_exhaust.color_ramp = ramp
+	_exhaust.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_exhaust.z_index = -1
 	_ship.add_child(_exhaust)
 
@@ -106,9 +119,18 @@ func configure(play_free: bool = false) -> void:
 	_bar.position = _bar_bg.position
 	_bar.size = Vector2(0, 10)
 	add_child(_bar)
-	var hint := _label(tr("W/S ou setas: desviar    Esc: sair"), 16, Color("c9d6ff"))
+	var hint := _label(tr("W/S ou setas: desviar"), 16, Color("c9d6ff"))
 	hint.position = Vector2(24, 980)
 	add_child(hint)
+	_exit_btn = Button.new()
+	_exit_btn.text = tr("Sair do minigame (Esc)")
+	_exit_btn.add_theme_font_override("font", FONT)
+	_exit_btn.add_theme_font_size_override("font_size", 16)
+	_exit_btn.position = Vector2(VIEW.x - 340.0, 14)
+	_exit_btn.size = Vector2(316, 40)
+	_exit_btn.focus_mode = Control.FOCUS_NONE
+	_exit_btn.pressed.connect(func(): closed.emit())
+	add_child(_exit_btn)
 	_msg = _label("", 30, Color("ffffff"))
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -130,8 +152,6 @@ func _process(delta: float) -> void:
 	if _over:
 		_over_t += delta
 		_ship.position.x += 260.0 * delta if finished else 0.0
-		if _over_t > 4.0:
-			closed.emit()
 		return
 	_t += delta
 	_invuln = maxf(0.0, _invuln - delta)
@@ -147,7 +167,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		closed.emit()
-	elif _over and _over_t > 0.8 and event.is_action_pressed("interact") and not event.is_echo():
+	elif _over and _over_t > 0.6 and ((event.is_action_pressed("interact") and not event.is_echo()) or (event is InputEventMouseButton and event.pressed)):
 		get_viewport().set_input_as_handled()
 		closed.emit()
 
@@ -256,6 +276,7 @@ func _burst(at: Vector2) -> void:
 
 func _end(ok: bool) -> void:
 	_over = true
+	_exit_btn.visible = false
 	finished = ok
 	_exhaust.amount = 80 if ok else 10
 	if ok and hits == 0:
@@ -264,7 +285,7 @@ func _end(ok: bool) -> void:
 		_msg.text = tr("Percurso concluído com %d impacto(s).") % hits
 	else:
 		_msg.text = tr("A nave foi muito danificada, mas segue viagem.")
-	_msg.text += "\n\n" + tr("(F: continuar)")
+	_msg.text += "\n\n" + tr("(F ou clique: continuar)")
 
 
 func _refresh_hud() -> void:

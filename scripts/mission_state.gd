@@ -744,7 +744,7 @@ func run_return() -> void:
 	Missions.complete("retorno")
 	finish_report()
 	if not _auto():
-		await UI.show_panel(String(report["text"]))
+		await UI.show_report()
 		var c: int = await UI.choose([tr("Continuar explorando"), tr("Voltar ao menu inicial")], tr("Missão concluída"))
 		if c == 1:
 			GameState.running = false
@@ -879,7 +879,17 @@ func build_report() -> Dictionary:
 	lines.append(tr("DECISÕES DO PLANEJAMENTO"))
 	for d in decisions:
 		lines.append("CML %d: %s" % [int(d["cml"]), tr(d["label"])])
-	return {"text": "\n".join(lines), "score": total, "grade": grade}
+	var plan: Array = []
+	for d in decisions:
+		plan.append({"cml": int(d["cml"]), "label": tr(d["label"])})
+	var events: Array = []
+	for e in log:
+		events.append({"kind": e["kind"], "tag": e["tag"], "label": tr(e["label"]), "cause": e["cause"], "ok": e["ok"]})
+	return {"text": "\n".join(lines), "score": total, "grade": grade,
+		"scores": {"sci": sci, "ship": ship, "dec": dec, "eff": eff, "bud": bud, "coop": coop},
+		"has_coop": has_coop, "coop_actions": int(stats.get("base_actions", 0)),
+		"objective": tr(names[objective]) if names.has(objective) else tr("plano padrão"),
+		"credits": int(p("credits")), "events": events, "causal": causal, "plan": plan}
 
 
 func finish_report() -> void:

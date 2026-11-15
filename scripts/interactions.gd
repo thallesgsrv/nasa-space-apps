@@ -602,24 +602,26 @@ func _checkup() -> void:
 # ============================ Missao 2: base e reator ============================
 func _base_viagem() -> void:
 	while true:
-		var opts: Array = []
+		var cards: Array = []
 		var acts: Array = []
 		if Voyage.active:
-			opts.append_array([tr("Monitor da nave"), tr("Previsão de perigos"), tr("Enviar alerta à nave")])
+			cards.append({"label": tr("Monitor da nave"), "desc": tr("Energia, combustível e progresso da viagem."), "glyph": "monitor", "color": Color("5a8aff")})
+			cards.append({"label": tr("Previsão de perigos"), "desc": tr("O que o próximo sorteio de eventos reserva."), "glyph": "forecast", "color": Color("ffb04a")})
+			cards.append({"label": tr("Enviar alerta à nave"), "desc": tr("Avisar a tripulação sobre o perigo em andamento."), "glyph": "alert", "color": Color("ff7a5a")})
 			acts.append_array(["monitor", "previsao", "alerta"])
 		if Missions.is_step("solar"):
-			opts.append(tr("Terminal solar (CME)"))
+			cards.append({"label": tr("Terminal solar (CME)"), "desc": tr("Decidir sobre a tempestade solar."), "glyph": "sun", "color": Color("ffd86a")})
 			acts.append("solar")
-		opts.append(tr("Fechar"))
+		cards.append({"label": tr("Fechar"), "desc": "", "glyph": "close", "color": Color("a9bbff")})
 		acts.append("fechar")
-		var i := await UI.choose(opts, tr("Painel da base"))
+		var i := await UI.run_board("hub", cards)
 		if i < 0 or acts[i] == "fechar":
 			return
 		match String(acts[i]):
 			"monitor":
-				await UI.show_panel(Voyage.monitor_text())
+				await UI.run_board("monitor", [_close_card()])
 			"previsao":
-				await UI.show_panel(Voyage.forecast_text())
+				await UI.run_board("forecast", [_close_card()])
 			"alerta":
 				await _enviar_alerta()
 			"solar":
@@ -628,17 +630,20 @@ func _base_viagem() -> void:
 					return
 
 
+func _close_card() -> Dictionary:
+	return {"label": tr("Fechar"), "desc": "", "glyph": "close", "color": Color("a9bbff")}
+
+
 func _enviar_alerta() -> void:
 	if Voyage.event == "asteroid":
 		# minigame de calculo: tempo de impacto = distancia / velocidade
 		var speed: float = Voyage.asteroid["speed"]
 		var dist := int(speed * float(Voyage.asteroid["eta"]))
-		await UI.say([tr("Objeto detectado: velocidade %.1f km/s, distância %d km.") % [speed, dist], tr("Calcule: tempo = distância ÷ velocidade.")])
 		var vals: Array = Voyage.asteroid_choices()
-		var labels: Array = []
+		var cards: Array = []
 		for v in vals:
-			labels.append(tr("Impacto em %d s") % int(v))
-		var k := await UI.choose(labels, tr("Quando ele atinge a nave?"))
+			cards.append({"label": tr("Impacto em %d s") % int(v), "desc": "", "glyph": "clock", "color": Color("ffd86a")})
+		var k := await UI.run_board("asteroid", cards, {"speed": speed, "dist": dist})
 		if k >= 0:
 			await Voyage.set_estimate(int(vals[k]))
 	await UI.say(await Voyage.send_alert())
@@ -669,13 +674,15 @@ func planet_transition() -> void:
 # Base: terminal solar em "tempo real" + manual; decide alertar ou ignorar.
 func _terminal_solar() -> void:
 	while true:
-		await UI.show_panel("", Callable(Solar, "terminal_text"))
-		var i := await UI.choose([tr("Enviar alerta de abrigo"), tr("Ignorar (falso alarme)"), tr("Ver o terminal de novo")], tr("Decisão da base"))
+		var cards: Array = [
+			{"label": tr("Enviar alerta de abrigo"), "desc": tr("Liga o alarme na nave: a tripulação tem %d s para ativar os escudos.") % int(Solar.CME_COUNTDOWN), "glyph": "alert", "color": Color("ff7a5a")},
+			{"label": tr("Ignorar (falso alarme)"), "desc": tr("Não avisa a nave. Se a tempestade for real, ela atinge sem aviso."), "glyph": "close", "color": Color("a9bbff")},
+		]
+		var i := await UI.run_board("solar", cards)
 		if i == 0 or i == 1:
 			await UI.say(await Solar.decide(i == 0))
 			return
-		if i < 0:
-			return
+		return
 
 
 # Astronauta: chave dos escudos no controle de energia (sala do reator, maquinas da esquerda).
