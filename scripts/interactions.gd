@@ -414,7 +414,6 @@ func _mission_console() -> void:
 			var r2 := a.substr(7)
 			GameState.route = r2
 			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
-	player.stand(stand_pos)
 
 
 
