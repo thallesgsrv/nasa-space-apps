@@ -1,8 +1,14 @@
-# Space Mission RPG
+# Terra Chamando
 
-Jogo 2D cooperativo feito em Godot para o NASA Space Apps Challenge 2026. A equipe planeja uma missão espacial na Terra, executa a viagem dentro da nave e, no fim, recebe um relatório que mostra o que cada decisão do planejamento causou no espaço.
+Jogo 2D cooperativo feito em Godot para o NASA Space Apps Challenge 2026, no desafio **Space Mission Design Game**. A equipe planeja uma missão espacial na Terra, executa a viagem dentro da nave e, no fim, recebe um relatório que mostra o que cada decisão do planejamento causou no espaço.
 
 Até 4 jogadores, em LAN ou pela internet. Também dá para jogar sozinho.
+
+**Jogar no navegador:** https://thallesgsrv.github.io/nasa-space-apps/
+
+## O desafio
+
+O Space Mission Design Game pede um jogo em que o usuário planeja e executa a própria missão espacial. Aqui, o planejamento segue os nove níveis de maturidade de conceito (CML) da NASA, e o que a equipe decide neles vira os parâmetros reais do voo, em vez de ficar só como menu de abertura.
 
 ## A ideia
 
@@ -79,6 +85,8 @@ O jogo está em português e inglês, tem música por sala, tutorial opcional e,
 Hoje só a API DONKI (erupções solares) está integrada. Um script Python consulta o DONKI no servidor e gera um JSON estático, que o jogo lê para definir a intensidade da tempestade solar. A intensidade vem do registro real; a direção da ejeção é sempre simulada, e o selo na tela avisa isso.
 
 O jogo procura o feed nesta ordem: `NASA_FEED_URL` (variável de ambiente ou a setting `nasa/feed_url`), o cache em `user://nasa_feed.json` e, por último, `data/space_events.json`. O jogo nunca chama `api.nasa.gov` direto, para a chave não ir junto com o build.
+
+No build para navegador não existem variáveis de ambiente, então o endereço do feed precisa estar na setting `nasa/feed_url` do projeto, e o servidor que entrega o JSON precisa liberar CORS (o GitHub Pages costuma liberar). Enquanto o feed não estiver configurado, o build publicado usa o arquivo local.
 
 ```bash
 NASA_API_KEY=sua_chave python3 tools/nasa_feed_proxy.py saida/space_events.json 30
@@ -162,7 +170,7 @@ Para testar o build Web localmente, rode `python -m http.server 8000` dentro de 
 
 Na LAN o jogo usa ENet: UDP 24565 para o jogo e UDP 24566 para descoberta de salas. Pela internet usa WebSocket na porta TCP 24567. Em qualquer caso o host é o executável desktop, e o navegador só consegue entrar em salas já criadas (por endereço, sem busca automática).
 
-Para publicar o jogo, exporte o preset Web e suba a pasta `build/web` em itch.io, GitHub Pages, Netlify ou Cloudflare Pages.
+A versão jogável está publicada no GitHub Pages (link no topo). Para publicar de novo, exporte o preset Web e suba a pasta `build/web` no GitHub Pages, itch.io, Netlify ou Cloudflare Pages.
 
 O cuidado é o HTTPS: uma página HTTPS bloqueia conexões `ws://`. O cliente do jogo aceita `wss://`, então há três caminhos:
 
@@ -205,14 +213,14 @@ No fim da execução o Godot imprime avisos de "RID allocations leaked at exit".
 - **NASA.** Só o DONKI, e só alimenta a tempestade solar.
 - **Economia e recompensas.** Os créditos existem só no planejamento e viram pontos no relatório. Não há economia durante a operação nem melhorias entre missões.
 - **Câmara de propulsão.** O painel responde que o controle está em desenvolvimento.
-- **Exportação Web.** O preset foi escrito à mão e ainda não foi exportado nem testado no navegador.
+- **Multiplayer no navegador.** O build Web está publicado, mas entrar numa sala pela página HTTPS (com `wss://`) ainda não foi testado de ponta a ponta.
 
 ## Roadmap
 
 1. Fazer o objetivo do CML 1 importar, ou reduzir as opções ao que existe.
 2. Dar ao engenheiro ações próprias de manutenção e diagnóstico.
 3. Acrescentar tasks e eventos, com encadeamento (um evento mal resolvido piora outro).
-4. Exportar para Web e testar o multiplayer no navegador com `wss://`.
+4. Testar o multiplayer pelo navegador com `wss://` e configurar o feed da NASA no build Web.
 5. Integrar NeoWs no evento de asteroide e EONET em eventos que afetem a base.
 6. Economia durante a operação e algum tipo de progressão.
 7. Ampliar o fallback do DONKI e atualizar o feed automaticamente com uma GitHub Action.
@@ -232,4 +240,19 @@ No fim da execução o Godot imprime avisos de "RID allocations leaked at exit".
 
 A licença ainda não foi definida, e o repositório não tem arquivo `LICENSE`. Faltam também os créditos dos assets (músicas, efeitos, fonte, sprites e interface) e a lista da equipe.
 
-Dados científicos: NASA DONKI (api.nasa.gov). O projeto não é afiliado nem endossado pela NASA.
+### Uso de IA
+
+- **Código:** usamos o Claude Code para ajudar a escrever o GDScript. O design do jogo, a ideia de ligar planejamento e voo e a arquitetura são nossos.
+- **Imagens:** parte das imagens foi gerada com IA e depois editada à mão no PixelStudio e no Pixelorama.
+- **Vídeos:** os vídeos usados na cutscene de abertura (`assets/videos/`) foram gerados com IA.
+- **Documentação:** este README e o texto da submissão foram redigidos com ajuda do Claude (Anthropic) a partir do nosso código e das nossas anotações, e revisados pela equipe.
+- Nenhum logotipo, bandeira ou identificador de missão da NASA foi usado ou gerado.
+
+### Dados e referências
+
+- NASA DONKI, dados de erupções solares (api.nasa.gov).
+- Níveis de maturidade de conceito (CML) e revisões PDR e CDR da NASA, como referência para o planejamento.
+- Godot Engine 4 (licença MIT), Python 3, Git e GitHub.
+- Fonte PixelOperator8.
+
+Projeto desenvolvido para o NASA Space Apps Challenge 2026, no desafio Space Mission Design Game.
