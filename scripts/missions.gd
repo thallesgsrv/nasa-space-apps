@@ -265,7 +265,7 @@ func summary_text() -> String:
 		for id in finished:
 			lines.append(" - " + tr(DEFS[id]["title"]))
 		var fx := effects_lines()
-		lines.append(tr("Efeitos para a próxima missão: ") + (", ".join(fx) if not fx.is_empty() else "nenhum"))
+		lines.append(tr("Efeitos para a próxima missão: ") + (", ".join(fx) if not fx.is_empty() else tr("nenhum")))
 	lines.append("")
 	lines.append(tr("Eventos possíveis (em desenvolvimento): ") + ", ".join(EVENTS.map(func(e): return tr(e))))
 	lines.append("")

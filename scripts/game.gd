@@ -17,6 +17,7 @@ var player: CharacterBody2D   # personagem controlado agora (astronauta na estac
 var scientist: CharacterBody2D
 var _room: Node2D
 var _busy := false
+var _game_over := false
 var _on_earth := false
 var _saved_room := ""         # sala da estacao onde o astronauta ficou
 var _saved_pos := Vector2.ZERO
@@ -25,8 +26,10 @@ var _saved_pos := Vector2.ZERO
 func _ready() -> void:
 	player = astronaut
 	scientist = SCIENTIST_SCENE.instantiate()
-	fade.color.a = 1.0
-	UI.fade_to(0.0, 0.0)
+	fade.color.a = 1.0 # comeca preto e clareia
+	GameState.exploded.connect(_on_exploded)
+	GameState.failed.connect(_on_failed)
+	UI.fade_to(0.0, 0.0) # tira o escurecimento do menu inicial
 	UI.show_hud(true)
 	GameState.running = true
 	_load_room(START_ROOM, START_SPAWN)
@@ -62,8 +65,11 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 		return
 	_room = scene.instantiate()
 	world.add_child(_room)
-	world.move_child(_room, 0)
-	_bind_room_doors()
+	Audio.play_room(_room.room_id())   # ambiente da sala (fade)
+	world.move_child(_room, 0) # sala atras, jogador na frente
+	for door in _room.find_children("*", "Area2D", true, false):
+		if door.has_signal("used"):
+			door.used.connect(change_room)
 	if spawn_name != "":
 		player.global_position = _room.get_spawn_position(spawn_name)
 	player.velocity = Vector2.ZERO
@@ -120,25 +126,41 @@ func _swap_player(next: CharacterBody2D) -> void:
 
 # O nucleo ficou 12 s em 100%: a nave explode.
 func _on_exploded() -> void:
-	player.locked = true
+	if not _begin_game_over():
+		return
 	Audio.stop_music(0.2)
 	Audio.sfx("explosao")
 	UI.lock()
 	await UI.flash_white()
 	UI.unlock()
-	await UI.say([tr("BOOM!"), tr("O núcleo do reator superaqueceu e a nave explodiu."), tr("Fim de jogo.")])
-	var i := await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
-	GameState.reset()
-	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")
+	await _finish_game_over([tr("BOOM!"), tr("O núcleo do reator superaqueceu e a nave explodiu.")])
 
 
-# A missao falhou (colisao, tempo, energia ou combustivel): game over.
+# A missao falhou (colisao, tempo, energia, combustivel ou vida zerada): game over.
 func _on_failed(reason: String) -> void:
-	player.locked = true
+	if not _begin_game_over():
+		return
 	UI.lock()
 	await UI.fade_to(1.0, 0.8)
 	UI.unlock()
-	await UI.say([tr("MISSÃO FALHOU"), reason, tr("Fim de jogo.")])
+	await _finish_game_over([tr("MISSÃO FALHOU"), reason])
+
+
+## Comeca o game over (so uma vez, mesmo que explosao e falha cheguem juntas):
+## para o relogio do jogo e fecha qualquer menu/dialogo aberto.
+func _begin_game_over() -> bool:
+	if _game_over:
+		return false
+	_game_over = true
+	GameState.running = false
+	player.locked = true
+	UI.dismiss_all()
+	return true
+
+
+func _finish_game_over(lines: Array) -> void:
+	lines.append(tr("Fim de jogo."))
+	await UI.say(lines)
 	var i := await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
 	GameState.reset()
 	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")

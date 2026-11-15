@@ -138,28 +138,10 @@ func _refresh_visual(moving: bool) -> void:
 
 
 func _play(base: String, restart: bool = false) -> void:
-	if sprite == null:
-		_show_still()
-		return
 	var anim := "%s_%s" % [base, _facing]
 	anim_sprite.flip_h = _flip and _facing == "side"
 	if restart or anim_sprite.animation != anim:
 		anim_sprite.play(anim)
-
-
-func _show_still() -> void:
-	if still == null:
-		return
-	match _facing:
-		"up":
-			still.texture = tex_up
-			still.flip_h = false
-		"down":
-			still.texture = tex_down
-			still.flip_h = false
-		_:
-			still.texture = tex_side
-			still.flip_h = _flip != side_faces_left
 
 
 func _on_animation_finished() -> void:

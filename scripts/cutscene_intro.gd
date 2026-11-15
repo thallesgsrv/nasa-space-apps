@@ -11,7 +11,7 @@ const SCIENTIST := preload("res://assets/scientist/scientist_up.png")
 const SHIP := preload("res://assets/vehicles/nave_transparente.png")
 const PANEL := preload("res://assets/ui/panel_menu.png")
 const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
-const VIDEO_PATH := "res://assets/Viideos/spaceshiplaunch.ogv"
+const VIDEO_PATH := "res://assets/videos/spaceshiplaunch.ogv"
 const GAME_SCENE := "res://scenes/game.tscn"
 const INK := Color("1b2a5c")
 

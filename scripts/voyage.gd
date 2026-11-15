@@ -264,7 +264,7 @@ func _start_reactor() -> void:
 	reactor = {"targets": targets, "two": two, "state": st, "eff": 0.0, "moves": 0, "wrong": 0, "elapsed": 0.0}
 	if _correct() == 5:
 		_rotate(reactor["state"], 0)
-	GameState.heat = minf(95.0, GameState.heat + REACTOR_HEAT_JUMP)
+	GameState.heat = maxf(GameState.heat, minf(95.0, GameState.heat + REACTOR_HEAT_JUMP))   # nunca esfria o nucleo
 	_apply_reactor_rate()
 	GameState.notice.emit(tr("ALERTA: falha térmica no reator! Ajuste as válvulas no painel do núcleo (a base tem os alvos)."))
 
