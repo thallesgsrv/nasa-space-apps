@@ -14,6 +14,18 @@ o cientista da base na Terra. Os dois lados precisam cooperar para completar as 
 | 1 | alternar astronauta (estação) ↔ cientista (Terra) |
 | Esc | cancelar / fechar |
 
+## Multiplayer em LAN (2 jogadores)
+No menu inicial: **MULTIPLAYER LAN**. Cooperativo assimétrico, na mesma rede Wi-Fi/cabo:
+- **Host = astronauta** (estação). Escolhe **CRIAR SALA**, espera o outro jogador e aperta **INICIAR MISSÃO**.
+- **Cliente = base na Terra (cientista)**. Escolhe **PROCURAR SALAS** (a sala aparece sozinha, por broadcast UDP) ou **ENTRAR POR IP**.
+- A tecla **1** fica desativada: cada um tem o seu papel. A base vê o que só ela vê (previsão de perigos, análise da amostra, terminal solar) e suas decisões chegam ao astronauta em tempo real.
+- O host roda toda a simulação (necessidades, viagem, eventos). O cliente recebe um espelho do estado ~10x/s; as decisões da base
+  (`Missions.analyze_sample/verdict`, `Voyage.set_estimate/send_alert`, `Solar.decide`) são executadas no host (`Net.call_host`).
+- Portas: **UDP 24565** (jogo, ENet) e **UDP 24566** (descoberta). Libere no firewall se necessário.
+- Se o cientista sair, o host continua em modo solo (tecla 1 volta a funcionar). Se o host sair, o cliente volta ao menu.
+- Código: `scripts/net.gd` (autoload `Net`), `scripts/lobby.gd`. Teste de integração (dois processos):
+  `godot --headless res://tests/net_integration.tscn -- host` e, em outro terminal, `... -- client`.
+
 ## Missões
 1. **Bionutrientes** — pegar a cultura de fungos, aquecer, centrifugar e enviar pela cápsula; a base analisa a placa de Petri e dá o veredito.
 2. **Viagem** — escolher a rota na cadeira de comando. A base prevê perigos (comunicação, asteroide, reator); o astronauta faz as manobras.

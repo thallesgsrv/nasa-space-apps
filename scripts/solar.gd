@@ -66,6 +66,8 @@ func live_angle() -> float:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if Net.is_client():
+		return  # o relogio do terminal segue local; o resto vem do host
 	if inverted_left > 0.0 and (not UI.busy or UI.realtime):
 		inverted_left = maxf(0.0, inverted_left - delta)
 	if alert_sent and not resolved and (not UI.busy or UI.realtime):
@@ -94,6 +96,8 @@ func terminal_text() -> String:
 
 ## Decisao da base. Devolve as linhas para mostrar ao jogador.
 func decide(send_alert: bool) -> Array:
+	if Net.is_client():
+		return await Net.call_host("Solar", "decide", [send_alert], [])
 	if decided:
 		return [tr("A decisão já foi tomada.")]
 	decided = true

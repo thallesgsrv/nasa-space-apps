@@ -21,6 +21,7 @@ var _game_over := false
 var _on_earth := false
 var _saved_room := ""         # sala da estacao onde o astronauta ficou
 var _saved_pos := Vector2.ZERO
+var _partner_label: Label   # multiplayer: quem e o parceiro e onde ele esta
 
 
 func _ready() -> void:
@@ -32,8 +33,24 @@ func _ready() -> void:
 	UI.fade_to(0.0, 0.0) # tira o escurecimento do menu inicial
 	UI.show_hud(true)
 	GameState.running = true
-	_load_room(START_ROOM, START_SPAWN)
+	if Net.is_online():
+		Net.begin_game()
+		Net.partner_left.connect(_on_partner_left)
+		Net.partner_room_changed.connect(_refresh_partner_label)
+		_build_partner_label()
+	if Net.is_client():
+		# multiplayer: o cliente e a BASE na Terra (cientista); o host e o astronauta na estacao
+		world.remove_child(astronaut)
+		player = scientist
+		world.add_child(scientist)
+		_on_earth = true
+		_load_room(EARTH_ROOM, EARTH_SPAWN)
+	else:
+		_load_room(START_ROOM, START_SPAWN)
 	await _fade_to(0.0)
+	if Net.is_client():
+		UI.toast(tr("Você é a BASE na Terra (cientista). Seu parceiro é o astronauta na estação."), 6.0)
+		return   # tutorial e missoes sao conduzidos pelo host
 	if not GameState.tutorial_done:
 		GameState.tutorial_done = true
 		player.locked = true
@@ -76,6 +93,7 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 	var place = _room.get("place_name")
 	if place != null and String(place) != "":
 		UI.toast(tr(String(place)), 2.2)
+		Net.send_room(String(place))   # multiplayer: o parceiro ve onde voce esta
 
 
 func _fade_to(alpha: float) -> void:
@@ -92,6 +110,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func toggle_world() -> void:
+	if Net.has_partner():
+		UI.toast(tr("No multiplayer cada jogador tem o seu papel: astronauta (host) e cientista (cliente)."), 3.5)
+		return
 	if _busy or UI.busy or player.locked or player.seated:
 		return
 	_busy = true
@@ -161,6 +182,47 @@ func _begin_game_over() -> bool:
 func _finish_game_over(lines: Array) -> void:
 	lines.append(tr("Fim de jogo."))
 	await UI.say(lines)
-	var i := await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
+	var i: int
+	if Net.is_client():
+		# multiplayer: quem decide e o host; o cliente espera a escolha dele
+		UI.toast(tr("Aguardando o host decidir..."), 600.0)
+		i = await Net.wait_restart_decision()
+	else:
+		i = await UI.choose([tr("Recomeçar"), tr("Menu inicial")], tr("Game over"))
+		if Net.has_partner():
+			Net.send_restart_decision(i)
+			await get_tree().create_timer(0.3).timeout   # deixa a mensagem sair antes de trocar de cena
 	GameState.reset()
+	if Net.is_online() and i != 0:
+		Net.leave()
 	get_tree().change_scene_to_file("res://scenes/game.tscn" if i == 0 else "res://scenes/start_menu.tscn")
+
+
+# ---------------------------------------------------------------- multiplayer
+func _build_partner_label() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	_partner_label = Label.new()
+	_partner_label.add_theme_font_override("font", preload("res://assets/fonts/PixelOperator8.ttf"))
+	_partner_label.add_theme_font_size_override("font_size", 20)
+	_partner_label.add_theme_color_override("font_color", Color("dfe9ff"))
+	_partner_label.add_theme_color_override("font_outline_color", Color("1b2a5c"))
+	_partner_label.add_theme_constant_override("outline_size", 6)
+	_partner_label.position = Vector2(24, 96)
+	layer.add_child(_partner_label)
+	_refresh_partner_label()
+
+
+func _refresh_partner_label() -> void:
+	if _partner_label == null:
+		return
+	var role := tr("Astronauta") if Net.is_client() else tr("Base (cientista)")
+	var where := tr(Net.partner_room) if Net.partner_room != "" else tr("conectado")
+	_partner_label.text = "%s: %s" % [role, where]
+	_partner_label.visible = Net.has_partner()
+
+
+func _on_partner_left() -> void:
+	_refresh_partner_label()
+	UI.toast(tr("O cientista saiu da partida. Modo solo: aperte 1 para alternar entre os papéis."), 6.0)

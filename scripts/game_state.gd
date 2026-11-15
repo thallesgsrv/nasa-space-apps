@@ -91,6 +91,8 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
+	if Net.is_client():
+		return  # multiplayer: o cientista so espelha o estado do host (ver net.gd)
 	if not running:
 		return
 	# a viagem da capsula segue mesmo com menus abertos

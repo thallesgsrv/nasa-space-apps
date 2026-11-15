@@ -30,6 +30,9 @@ func _ready() -> void:
 	_test_voyage_failures()
 	_test_reactor_heat_never_cools()
 	_test_solar_flow()
+	_test_net_snapshot_roundtrip()
+	await _test_net_client_is_mirror()
+	await _test_net_client_game_scene()
 	_test_translations()
 	_test_assets_referenced_exist()
 	await _test_every_interaction_and_minigame()
@@ -405,3 +408,85 @@ func _test_game_over_flow_in_game_scene() -> void:
 	check(not UI.realtime, "tempo normal")
 	check(GameState.health == 100.0 and GameState.food > 95.0, "necessidades restauradas")
 	check(GameState.running, "nova partida em andamento")
+
+
+# ---------------------------------------------------------------- multiplayer (LAN)
+func _test_net_snapshot_roundtrip() -> void:
+	section("multiplayer: snapshot do host recria o estado no espelho")
+	GameState.reset()
+	GameState.food = 42.0
+	GameState.inventory.append("cafe")
+	Missions.start("bionutrientes")
+	Voyage.start("Lua")
+	Solar.real = true
+	var snap: Dictionary = Net.snapshot()
+	GameState.reset()
+	check(GameState.food == 100.0 and Missions.active == "" and not Voyage.active, "estado zerado antes de aplicar")
+	var seen: Array = []
+	var cb := func(): seen.append(1)
+	Missions.changed.connect(cb)
+	Net.apply_snapshot(snap)
+	Missions.changed.disconnect(cb)
+	check(GameState.food == 42.0, "comida espelhada")
+	check(GameState.inventory == ["cafe"], "mochila espelhada")
+	check(GameState.inventory.get_typed_builtin() == TYPE_STRING, "mochila continua Array[String]")
+	check(Missions.active == "bionutrientes", "missao espelhada")
+	check(Voyage.active and Voyage.route == "Lua", "viagem espelhada")
+	check(Solar.real, "solar espelhado")
+	check(seen.size() == 1, "Missions.changed emitido ao aplicar (veio %d)" % seen.size())
+	# aplicar o mesmo snapshot de novo nao dispara avisos a toa
+	seen.clear()
+	Missions.changed.connect(cb)
+	Net.apply_snapshot(snap)
+	Missions.changed.disconnect(cb)
+	check(seen.is_empty(), "snapshot igual nao emite changed")
+	Net._last_snap = {}
+	GameState.reset()
+
+
+func _test_net_client_is_mirror() -> void:
+	section("multiplayer: o cliente nao simula, so espelha; offline segue igual")
+	GameState.reset()
+	GameState.running = true
+	GameState.food = 50.0
+	Voyage.start("Lua")
+	var t0: float = Voyage.time_left
+	Net.mode = Net.Mode.CLIENT
+	GameState._process(5.0)
+	Voyage._process(5.0)
+	Missions._process(5.0)
+	var inverted_ok: bool = not Net.has_partner() or Net.is_client()
+	Net.mode = Net.Mode.OFFLINE
+	check(GameState.food == 50.0, "GameState do cliente nao desgasta necessidades")
+	check(Voyage.time_left == t0, "Voyage do cliente nao corre")
+	check(inverted_ok, "papeis coerentes")
+	# offline: call_host executa direto e a base funciona como antes
+	var c = await Missions.analyze_sample()
+	check(c is String and c != "", "offline: analyze_sample direto")
+	GameState.running = false
+	GameState.reset()
+
+
+func _test_net_client_game_scene() -> void:
+	section("multiplayer: cliente entra na Terra como cientista; host fica na estacao")
+	GameState.reset()
+	Net.mode = Net.Mode.CLIENT
+	var game := (load("res://scenes/game.tscn") as PackedScene).instantiate()
+	add_child(game)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(game.player == game.scientist, "cliente controla o cientista")
+	check(game._room != null and game._room.room_id() == "laboratorio", "cliente comeca no laboratorio")
+	check(game._on_earth, "cliente marcado como na Terra")
+	game.toggle_world()   # sem parceiro de verdade nao deve travar nem trocar
+	game.queue_free()
+	await get_tree().process_frame
+	Net.mode = Net.Mode.OFFLINE
+	GameState.running = false
+	GameState.reset()
+	var lobby := (load("res://scenes/lobby.tscn") as PackedScene).instantiate()
+	add_child(lobby)
+	await get_tree().process_frame
+	check(lobby._state == lobby.S.MAIN and lobby._items.size() == 4, "lobby abre no menu principal")
+	lobby.queue_free()
+	await get_tree().process_frame

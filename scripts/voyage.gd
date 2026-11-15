@@ -108,6 +108,8 @@ func comms_ok() -> bool:
 
 
 func _process(delta: float) -> void:
+	if Net.is_client():
+		return
 	if not active or not GameState.running:
 		return
 	if UI.busy and not UI.realtime:
@@ -247,6 +249,9 @@ func asteroid_choices() -> Array:
 
 
 func set_estimate(seconds: int) -> void:
+	if Net.is_client():
+		await Net.call_host("Voyage", "set_estimate", [seconds])
+		return
 	if event == "asteroid":
 		asteroid["estimate"] = seconds
 
@@ -422,6 +427,8 @@ func forecast_text() -> String:
 
 ## A base manda um alerta para a nave. Devolve o texto mostrado ao jogador.
 func send_alert() -> Array:
+	if Net.is_client():
+		return await Net.call_host("Voyage", "send_alert", [], [])
 	var kind := event if event != "" else next_event
 	if kind == "":
 		return [tr("Nada de perigoso a avisar por enquanto.")]

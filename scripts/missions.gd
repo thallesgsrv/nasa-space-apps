@@ -81,6 +81,8 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
+	if Net.is_client():
+		return
 	if heater_state == "heating" and GameState.running:
 		heating_left -= delta
 		if heating_left <= 0.0:
@@ -175,6 +177,8 @@ func color_name() -> String:
 
 
 func analyze_sample() -> String:
+	if Net.is_client():   # a base (cliente) pede ao host: a regra roda so la
+		return await Net.call_host("Missions", "analyze_sample", [], "")
 	sample_ok = randf() < SUCCESS_CHANCE
 	sample_color = (COLORS_OK if sample_ok else COLORS_FAIL).pick_random()
 	analyzed = true
@@ -192,6 +196,8 @@ func send_data() -> void:
 ## Regras do documento: falha -> mais energia/dados gastos, sem efeito posterior;
 ## sucesso real -> proxima missao melhor; sucesso declarado sobre falha real -> risco (hidden).
 func verdict(says_success: bool) -> Array:
+	if Net.is_client():
+		return await Net.call_host("Missions", "verdict", [says_success], [])
 	flags.clear()
 	if says_success:
 		if sample_ok:
