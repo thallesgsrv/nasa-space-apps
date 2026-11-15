@@ -159,12 +159,18 @@ func _effects_text(effects: Dictionary) -> String:
 # ============================ cafeteria ============================
 func _cafeteria_item(_source: Node, id: String, title: String, now_label: String) -> void:
 	var label := GameState.item_name(id)
-	var i := await UI.choose([now_label, tr("Guardar na mochila"), tr("Cancelar")], title)
+	var left: int = int(GameState.vending.get(id, 0))
+	if left <= 0:
+		await UI.say(tr("%s: acabou o estoque! (a cafeteria tem só %d de cada item)") % [title, GameState.VENDING_STOCK])
+		return
+	var i := await UI.choose([now_label, tr("Guardar na mochila"), tr("Cancelar")], tr("%s (restam %d)") % [title, left])
 	if i == 0:
+		GameState.vending[id] = left - 1
 		GameState.use_item(id)
 		await UI.say("%s! %s" % [label, _effects_text(GameState.ITEMS[id]["effects"])])
 	elif i == 1:
 		if GameState.add_item(id):
+			GameState.vending[id] = left - 1
 			await UI.say(tr("%s guardado na mochila.") % label)
 		else:
 			await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
@@ -184,33 +190,52 @@ func _bunk() -> void:
 
 # ============================ armazem ============================
 func _impressora() -> void:
-	var i := await UI.choose([tr("Produzir ração"), tr("Fechar")], tr("Impressora de comida"))
-	if i != 0:
+	var i := await UI.choose([tr("Produzir ração (%d s)") % int(GameState.PRODUCE_TIME), tr("Produzir água (%d s)") % int(GameState.WATER_TIME), tr("Fechar")], tr("Impressora de comida e água"))
+	if i != 0 and i != 1:
 		return
-	if GameState.output_rations >= 5:
-		await UI.say(tr("A saída já está cheia (5 rações). Retire no terminal ao lado esquerdo."))
+	var water := i == 1
+	if (GameState.output_water if water else GameState.output_rations) >= 5:
+		await UI.say(tr("A saída já está cheia (5). Retire no terminal ao lado esquerdo."))
 		return
-	UI.toast(tr("Produzindo ração..."), GameState.PRODUCE_TIME)
-	await get_tree().create_timer(GameState.PRODUCE_TIME).timeout
-	GameState.output_rations += 1
+	var secs := GameState.WATER_TIME if water else GameState.PRODUCE_TIME
+	await UI.timer_bar(tr("Produzindo água...") if water else tr("Produzindo ração..."), secs)
+	if water:
+		GameState.output_water += 1
+	else:
+		GameState.output_rations += 1
 	GameState.inventory_changed.emit()
-	await UI.say([tr("Ração pronta!"), tr("Ela saiu no terminal grande da esquerda.")])
+	await UI.say([tr("Água pronta!") if water else tr("Ração pronta!"), tr("Ela saiu no terminal grande da esquerda.")])
 
 
 func _terminal_saida() -> void:
 	var n := GameState.output_rations
-	if n <= 0:
-		await UI.say(tr("Nenhuma ração pronta. Produza uma na impressora de comida (máquina da direita)."))
+	var w := GameState.output_water
+	if n <= 0 and w <= 0:
+		await UI.say(tr("Nada pronto. Produza ração ou água na impressora (máquina da direita)."))
 		return
-	var i := await UI.choose([tr("Retirar ração (%d)") % n, tr("Fechar")], tr("Terminal de saída"))
-	if i != 0:
+	var opts: Array = []
+	var kinds: Array = []
+	if n > 0:
+		opts.append(tr("Retirar ração (%d)") % n)
+		kinds.append("racao")
+	if w > 0:
+		opts.append(tr("Retirar água (%d)") % w)
+		kinds.append("agua")
+	opts.append(tr("Fechar"))
+	var i := await UI.choose(opts, tr("Terminal de saída"))
+	if i < 0 or i >= kinds.size():
 		return
 	if not GameState.inventory_has_room():
 		await UI.say(tr("A mochila está cheia! (%d espaços)") % GameState.INVENTORY_SLOTS)
 		return
-	GameState.output_rations -= 1
-	GameState.add_item("racao")
-	await UI.say(tr("Você pegou 1 ração."))
+	if kinds[i] == "agua":
+		GameState.output_water -= 1
+		GameState.add_item("agua")
+		await UI.say(tr("Você pegou 1 água."))
+	else:
+		GameState.output_rations -= 1
+		GameState.add_item("racao")
+		await UI.say(tr("Você pegou 1 ração."))
 
 
 func _armario() -> void:

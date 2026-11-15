@@ -64,9 +64,11 @@ func _ready() -> void:
 		_on_earth = true
 		_saved_room = START_ROOM
 		_saved_pos = Vector2.ZERO   # ZERO = chegar pelo ponto "start" da cafeteria
+		GameState.aboard = false     # o nucleo so esquenta depois que o astronauta pisar na nave
 		_load_room(EARTH_ROOM, EARTH_SPAWN)
 	else:
 		_load_room(START_ROOM, START_SPAWN)
+	UI.show_vitals(not _on_earth)
 	await _fade_to(0.0)
 	if Net.is_client():
 		if Net.is_crew_client():
@@ -90,7 +92,27 @@ func _ready() -> void:
 			UI.toast(tr("Missão planejada. Aperte 1 para ir à estação."), 6.0)
 
 
+# Aviso de fome/sede: so quem esta na nave (astronauta) recebe; o cientista da Terra nao tem necessidades.
+const NEED_WARN := 30.0
+const NEED_CLEAR := 45.0
+var _warned := {"food": false, "thirst": false}
+
+
+func _check_needs() -> void:
+	if _on_earth or not GameState.running:
+		return
+	var vals := {"food": GameState.food, "thirst": GameState.thirst}
+	var msgs := {"food": tr("Você está com FOME! Coma algo (cafeteria ou ração do armazém)."), "thirst": tr("Você está com SEDE! Beba algo (refrigerante ou água do armazém).")}
+	for k in vals:
+		if vals[k] < NEED_WARN and not _warned[k]:
+			_warned[k] = true
+			UI.toast(msgs[k], 4.0)
+		elif vals[k] > NEED_CLEAR:
+			_warned[k] = false
+
+
 func _process(_delta: float) -> void:
+	_check_needs()
 	if not Net.is_online() or _room == null:
 		return
 	Net.report_pose(_room.scene_file_path, player.global_position, 0)
@@ -147,6 +169,9 @@ func _load_room(room_path: String, spawn_name: String) -> void:
 	_room = scene.instantiate()
 	world.add_child(_room)
 	Audio.play_room(_room.room_id())   # ambiente da sala (fade)
+	if _room.room_id() != "laboratorio" and not GameState.aboard:
+		GameState.aboard = true
+		UI.toast(tr("Você embarcou na nave. Os sistemas começam a funcionar."), 4.0)
 	world.move_child(_room, 0) # sala atras, jogador na frente
 	for door in _room.find_children("*", "Area2D", true, false):
 		if door.has_signal("used"):
@@ -171,6 +196,39 @@ func _fade_to(alpha: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("switch_world") and not event.is_echo():
 		toggle_world()
+	elif event.is_action_pressed("ui_cancel") and not event.is_echo():
+		if not (UI.busy or _busy or _game_over or player.locked or player.seated):
+			get_viewport().set_input_as_handled()
+			_pause_menu()
+
+
+# Esc: menu de pausa (o tempo do jogo congela enquanto o menu esta aberto; ver UI.busy).
+func _pause_menu() -> void:
+	player.locked = true
+	while true:
+		var opts: Array = [tr("Continuar"), tr("Opções")]
+		if Net.is_online():
+			opts.append(tr("Sair da partida"))
+		else:
+			opts.append(tr("Reiniciar"))
+			opts.append(tr("Menu inicial"))
+		var i := await UI.choose(opts, tr("Pausa"))
+		if i < 0 or i == 0:
+			break
+		if i == 1:
+			await UI.options_menu()
+			continue
+		var restart := not Net.is_online() and i == 2
+		var q := tr("Reiniciar a partida? Todo o progresso será perdido.") if restart else tr("Voltar ao menu inicial? Todo o progresso será perdido.")
+		var sure := await UI.choose([tr("Não, continuar jogando"), tr("Sim, tenho certeza")], q)
+		if sure != 1:
+			continue
+		GameState.reset()
+		if Net.is_online():
+			Net.leave()
+		get_tree().change_scene_to_file("res://scenes/game.tscn" if restart else "res://scenes/start_menu.tscn")
+		return
+	player.locked = false
 
 
 func toggle_world() -> void:
@@ -188,6 +246,7 @@ func toggle_world() -> void:
 		_swap_player(scientist)
 		_load_room(EARTH_ROOM, EARTH_SPAWN)
 		_on_earth = true
+		UI.show_vitals(false)
 		UI.toast(tr("Terra: você controla o cientista. Aperte 1 para voltar à estação."), 4.0)
 	else:
 		_swap_player(astronaut)
@@ -197,6 +256,7 @@ func toggle_world() -> void:
 			_load_room(_saved_room, "")
 			player.global_position = _saved_pos
 		_on_earth = false
+		UI.show_vitals(true)
 		UI.toast(tr("Estação: você controla o astronauta."), 3.0)
 	await _fade_to(0.0)
 	player.set_physics_process(true)

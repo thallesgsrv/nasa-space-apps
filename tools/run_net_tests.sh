@@ -16,4 +16,14 @@ FAIL=0
 for p in "${PIDS[@]}"; do wait "$p" || FAIL=1; done
 for f in "$LOG"/*.log; do echo "--- $(basename "$f")"; grep -E "OK$|FALHOU" "$f"; done
 [ $FAIL -eq 0 ] && echo "REDE ($KIND): tudo certo" || echo "REDE ($KIND): FALHOU (logs em $LOG)"
+# planejamento em equipe (voto no CML 1 + conjuntos de CML decididos por jogadores diferentes), sempre por ws
+timeout 120 "$G" --headless "$T" -- planhost > "$LOG/planhost.log" 2>&1 &
+PH=$!
+sleep 4
+timeout 120 "$G" --headless "$T" -- plancrew > "$LOG/plancrew.log" 2>&1 &
+PC=$!
+wait $PH || FAIL=1
+wait $PC || FAIL=1
+for f in "$LOG"/plan*.log; do echo "--- $(basename "$f")"; grep -E "OK$|FALHOU" "$f"; done
+[ $FAIL -eq 0 ] && echo "PLANEJAMENTO EM EQUIPE: tudo certo" || echo "PLANEJAMENTO EM EQUIPE: FALHOU (logs em $LOG)"
 exit $FAIL

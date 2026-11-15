@@ -39,6 +39,10 @@ func _ready() -> void:
 		await _browse()
 	elif role == "host4":
 		await _host4(args[1] if args.size() > 1 else "enet")
+	elif role == "planhost":
+		await _plan_host()
+	elif role == "plancrew":
+		await _plan_crew()
 	elif role == "seehost":
 		await _see_host()
 	elif role == "seeclient":
@@ -66,6 +70,52 @@ func _host() -> void:
 	check(Missions.sample_color != "", "host tem a cor da amostra")
 	# o cliente pediu o veredito: o host aplicou as regras
 	check(await _wait_until(func(): return Missions.flags.has("energia_extra") or Missions.flags.has("nave_leve") or Missions.flags.has("envenenamento") or Missions.result_lines.size() > 0, 20.0), "veredito executado no host")
+	await get_tree().create_timer(1.0).timeout
+
+
+# ---------------------------------------------------------------- planejamento em equipe (CML)
+## Confirma sozinho a alternativa 0 sempre que a prancheta pede uma decisao (nos dois lados).
+func _auto_confirm(secs: float) -> void:
+	var t := 0.0
+	while t < secs:
+		await get_tree().create_timer(0.1).timeout
+		t += 0.1
+		var b: Control = MissionState._board
+		if is_instance_valid(b) and b.is_deciding():
+			b._sel = 0
+			b._confirm()
+
+
+func _plan_host() -> void:
+	check(Net.host_game(Net.WS_PORT, true) == OK, "criar sala (ws)")
+	check(await _wait_until(func(): return Net.roster.size() == 2, 30.0), "1 cliente entrou")
+	Net.begin_game()
+	GameState.reset()
+	GameState.running = false
+	_auto_confirm(40.0)
+	MissionState._begin_planning()
+	await MissionState._cml1()          # voto: os dois jogadores votam
+	check(MissionState.cml_done == 1 and MissionState.objective != "", "CML 1 votado e resolvido (%s)" % MissionState.objective)
+	check(MissionState.plan_owners.size() == 9, "9 donos de CML replicados")
+	await MissionState._cml2()          # cada conjunto tem um dono; um deles e o cliente
+	await MissionState._cml4()
+	check(MissionState.cml_done == 4, "CML 2 a 4 concluidos (um deles decidido pelo outro jogador)")
+	check(MissionState.decisions.size() >= 3, "decisoes registradas (%d)" % MissionState.decisions.size())
+	MissionState._planning = false
+	MissionState.planning_active = false
+	MissionState.changed.emit()
+	await get_tree().create_timer(2.0).timeout
+
+
+func _plan_crew() -> void:
+	check(Net.join_url("ws://127.0.0.1:%d" % Net.WS_PORT) == OK, "criar cliente")
+	check(await _wait_until(func(): return Net.roster.size() == 2 and Net.roster.has(multiplayer.get_unique_id()), 30.0), "roster chegou")
+	Net.begin_game()
+	_auto_confirm(40.0)
+	check(await _wait_until(func(): return MissionState.planning_active, 20.0), "prancheta aberta no cliente pelo host")
+	check(await _wait_until(func(): return MissionState.cml_done >= 4, 30.0), "cliente acompanhou ate o CML 4")
+	check(MissionState.decisions.size() >= 3, "decisoes replicadas no cliente")
+	check(await _wait_until(func(): return not MissionState.planning_active, 20.0), "planejamento encerrado no cliente")
 	await get_tree().create_timer(1.0).timeout
 
 

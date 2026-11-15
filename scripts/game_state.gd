@@ -18,7 +18,9 @@ const STARVE_DAMAGE := 0.5   # vida perdida por segundo, por necessidade zerada
 const MELTDOWN_TIME := 12.0  # segundos ate a nave explodir depois que o nucleo chega a 100%
 const HEAT_WARNING := 80.0
 const CAPSULE_TIME := 5.0    # segundos que a capsula demora para voltar da Terra
-const PRODUCE_TIME := 3.0    # segundos para a impressora produzir uma racao
+const PRODUCE_TIME := 7.0    # segundos para a impressora produzir uma racao
+const WATER_TIME := 5.0      # segundos para produzir uma agua
+const VENDING_STOCK := 3     # cada item a venda na cafeteria (cafe, bolacha, refrigerante) tem so 3 unidades
 
 const INVENTORY_SLOTS := 6
 const STORAGE_SLOTS := 20    # armarios do armazem
@@ -30,6 +32,7 @@ const ITEMS := {
 	"bolacha": {"name": "Bolacha", "short": "BO", "effects": {"food": 30.0}},
 	"refri": {"name": "Refrigerante", "short": "RE", "effects": {"thirst": 35.0}},
 	"racao": {"name": "Ração", "short": "RA", "effects": {"food": 50.0}},
+	"agua": {"name": "Água", "short": "AG", "effects": {"thirst": 45.0}},
 	# itens da missao 1 (sem efeito ao usar)
 	"pacote_fungos": {"name": "Pacote de fungos", "short": "PF", "effects": {}},
 	"pacote_quente": {"name": "Pacote aquecido", "short": "PQ", "effects": {}},
@@ -37,6 +40,7 @@ const ITEMS := {
 }
 
 var running := false  # so conta tempo durante a partida
+var aboard := true    # ja pisou na nave? Antes disso (jogo solo comeca na Terra) nada esquenta nem da fome
 var food := 100.0
 var thirst := 100.0
 var sleep := 100.0
@@ -48,6 +52,8 @@ var meltdown_left := -1.0         # contagem para a explosao (-1 = parada)
 var inventory: Array[String] = []
 var storage: Array[String] = []   # itens guardados nos armarios (max STORAGE_SLOTS)
 var output_rations := 0           # racoes prontas esperando no terminal de saida
+var output_water := 0             # aguas prontas esperando no terminal de saida
+var vending := {"cafe": VENDING_STOCK, "bolacha": VENDING_STOCK, "refri": VENDING_STOCK}   # estoque da cafeteria
 var capsule_item := ""            # item viajando para a Terra
 var capsule_left := 0.0
 var capsule_hold := false         # true: item fica na Terra ate a base liberar (veredito da missao)
@@ -74,6 +80,8 @@ func reset() -> void:
 	inventory.clear()
 	storage.clear()
 	output_rations = 0
+	output_water = 0
+	vending = {"cafe": VENDING_STOCK, "bolacha": VENDING_STOCK, "refri": VENDING_STOCK}
 	capsule_item = ""
 	capsule_left = 0.0
 	capsule_hold = false
@@ -82,6 +90,7 @@ func reset() -> void:
 	conditions.clear()
 	tutorial_done = false
 	_heat_warned = false
+	aboard = true
 	Missions.reset()
 	MissionState.reset()
 	Voyage.reset()
@@ -103,6 +112,8 @@ func _process(delta: float) -> void:
 		capsule_left -= delta
 		if capsule_left <= 0.0:
 			_capsule_arrived()
+	if not aboard:
+		return  # ainda na Terra: o nucleo so comeca a esquentar (e a fome a bater) depois da 1a vez na nave
 	if UI.busy and not UI.realtime:
 		return  # menus e dialogos congelam o tempo das necessidades
 	food = maxf(0.0, food - FOOD_DECAY * delta)

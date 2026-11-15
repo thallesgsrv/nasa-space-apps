@@ -30,6 +30,7 @@ func _ready() -> void:
 	_test_voyage_arrival()
 	_test_voyage_failures()
 	_test_reactor_heat_never_cools()
+	_test_new_rules()
 	_test_solar_flow()
 	_test_net_snapshot_roundtrip()
 	_test_nasa_feed()
@@ -807,3 +808,34 @@ func _test_rooms_consistency() -> void:
 		["sala_controle", "assento"], ["sala_reator", "escudos"], ["sala_reator", "nucleo"]]
 	for tg in targets:
 		check(actions.has(tg[0]) and actions[tg[0]].has(tg[1]), "a sala %s tem a zona '%s'" % [tg[0], tg[1]])
+
+
+# ---------------------------------------------------------------- regras novas
+func _test_new_rules() -> void:
+	section("nucleo/necessidades so contam depois de pisar na nave; estoque; agua; planejamento em conjuntos")
+	GameState.reset()
+	GameState.running = true
+	GameState.aboard = false
+	var h0 := GameState.heat
+	var f0 := GameState.food
+	GameState._process(5.0)
+	check(is_equal_approx(GameState.heat, h0) and is_equal_approx(GameState.food, f0), "antes de embarcar nada esquenta nem da fome")
+	GameState.aboard = true
+	GameState._process(5.0)
+	check(GameState.heat > h0 and GameState.food < f0, "depois de embarcar o nucleo esquenta e a comida cai")
+	GameState.reset()
+	check(GameState.aboard, "reset deixa o estado padrao (a cena do jogo solo e que comeca fora da nave)")
+	for id in ["cafe", "bolacha", "refri"]:
+		check(int(GameState.vending[id]) == 3, "cafeteria: %s comeca com 3 no estoque" % id)
+	check(GameState.ITEMS.has("agua") and GameState.ITEMS["agua"]["effects"].has("thirst"), "existe o item agua (mata a sede)")
+	check(GameState.WATER_TIME == 5.0 and GameState.PRODUCE_TIME == 7.0, "agua leva 5 s e racao 7 s")
+	# planejamento: 4 conjuntos de 2 CMLs (2-3, 4-5, 6-7, 8-9), um dono por conjunto
+	MissionState._assign_owners()
+	check(MissionState.plan_owners.size() == 9, "9 donos de CML")
+	for k in 4:
+		check(MissionState._owner_peer[1 + 2 * k] == MissionState._owner_peer[2 + 2 * k], "CML %d e %d tem o mesmo dono (conjunto de 2)" % [2 + 2 * k, 3 + 2 * k])
+	var chips := MissionState.fx_chips({"credits": -20.0, "risk": 5.0, "science": 10.0})
+	check(chips.size() == 3 and not chips[0]["good"] and not chips[1]["good"] and chips[2]["good"], "etiquetas: custo e risco ruins, ciencia boa")
+	# voto do CML 1 em modo automatico segue a escolha
+	MissionState.reset()
+	GameState.reset()

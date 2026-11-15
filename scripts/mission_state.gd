@@ -69,11 +69,19 @@ var mitigated: Array = []
 var log: Array = []              # eventos da missao: [{kind, tag, label, cause, ok, outcome}]
 var stats: Dictionary = {}
 var report: Dictionary = {}      # {text, score, grade} depois do retorno
+# planejamento em equipe (replicado): quem decide cada CML, qual esta em andamento e a dica da tela
+var plan_owners: Array = []      # papel (Net.Role) de quem decide cada CML 1..9
+var plan_cml := 0
+var planning_active := false
+var plan_hint := ""
 
 # ---- so locais (nao replicados) ----
 var planning_disabled := false   # testes e modo rapido: nao abre o planejamento
 var auto_mode := false           # testes: responde sem interface
 var auto_picks: Array = []
+var _planning := false           # dentro do planejamento: perguntas e dicas usam a prancheta
+var _board: Control
+var _owner_peer: Array = []      # (host) id do jogador que decide cada CML
 
 
 func reset() -> void:
@@ -87,7 +95,20 @@ func reset() -> void:
 	log = []
 	stats = {}
 	report = {}
+	plan_owners = []
+	plan_cml = 0
+	planning_active = false
+	plan_hint = ""
+	_planning = false
+	if is_instance_valid(_board):
+		_board.queue_free()
+	_board = null
 	changed.emit()
+
+
+func _ready() -> void:
+	Net.plan_asked.connect(_on_plan_asked)
+	changed.connect(_sync_board)
 
 
 func p(key: String) -> float:
@@ -186,11 +207,23 @@ func _ask(options: Array, title: String) -> int:
 	if _auto():
 		var v: int = int(auto_picks.pop_front()) if not auto_picks.is_empty() else 0
 		return clampi(v, 0, options.size() - 1)
+	if _planning:
+		var cards: Array = []
+		for o in options:
+			cards.append({"label": String(o), "desc": "", "fx": {}, "ok": true})
+		return await _ask_cards(plan_cml, title, cards)
 	return await UI.choose(options, title)
 
 
 func _say(lines: Variant) -> void:
 	if _auto():
+		return
+	if _planning:
+		# na prancheta a dica fica na tela (nao trava): so as decisoes pedem um clique
+		var arr: Array = lines if lines is Array else [lines]
+		plan_hint = "
+".join(PackedStringArray(arr.map(func(x): return str(x))))
+		changed.emit()
 		return
 	await UI.say(lines)
 
@@ -233,28 +266,37 @@ func apply_fx(fx: Dictionary) -> void:
 
 
 ## Mostra as alternativas (com custo/efeito) e devolve a escolhida; os efeitos ja foram aplicados.
-func _choose_option(cml: int, title: String, opts: Array) -> Dictionary:
-	var lines: Array = []
-	for o in opts:
-		lines.append("%s: %s [%s]" % [tr(o["label"]), tr(o["desc"]), _fx_text(o["fx"])])
-	await _say(lines)
+func _choose_option(cml: int, title: String, opts: Array, vote: bool = false) -> Dictionary:
 	var chosen: Dictionary = {}
 	while chosen.is_empty():
-		var labels: Array = []
+		var cards: Array = []
+		var any_ok := false
 		for o in opts:
-			labels.append(tr(o["label"]))
-		var i: int = await _ask(labels, title)
+			var ok := _can_afford(o["fx"])
+			any_ok = any_ok or ok
+			cards.append({"label": tr(o["label"]), "desc": tr(o["desc"]), "fx": o["fx"], "ok": ok})
+		if not any_ok:
+			# sem creditos para nada: libera a alternativa mais barata (os creditos nunca ficam negativos)
+			var best := 0
+			for k in opts.size():
+				if float(opts[k]["fx"].get("credits", 0.0)) > float(opts[best]["fx"].get("credits", 0.0)):
+					best = k
+			cards[best]["ok"] = true
+		var i: int
+		if vote:
+			i = await _vote_cards(title, cards)
+		else:
+			i = await _ask_cards(cml, title, cards)
 		if i < 0:
 			continue
 		var o: Dictionary = opts[i]
-		if not _can_afford(o["fx"]):
+		if not bool(cards[i]["ok"]):
 			if _auto():
-				for alt in opts:
-					if _can_afford(alt["fx"]):
-						o = alt
+				for k in opts.size():
+					if bool(cards[k]["ok"]):
+						o = opts[k]
 						break
 			else:
-				await _say(tr("Créditos insuficientes para esta opção."))
 				continue
 		chosen = o
 	apply_fx(chosen["fx"])
@@ -263,8 +305,158 @@ func _choose_option(cml: int, title: String, opts: Array) -> Dictionary:
 
 
 func _intro(n: int) -> void:
-	var info: Dictionary = CML_INFO[n - 1]
-	await _say([tr(info["title"]), tr("Objetivo: ") + tr(info["goal"]), tr("Para passar: ") + tr(info["pass"]) + "  " + tr("Créditos: %d") % int(p("credits"))])
+	plan_cml = n
+	plan_hint = ""
+	changed.emit()
+
+
+# ---- prancheta (interface do planejamento) e rede
+func fx_good(k: String, v: float) -> bool:
+	if k in ["risk", "energy_mult", "mass"]:
+		return v <= 0.0
+	return v >= 0.0
+
+
+## Efeitos de uma alternativa como "etiquetas" coloridas para os cartoes.
+func fx_chips(fx: Dictionary) -> Array:
+	var out: Array = []
+	for k in fx:
+		if k == "set":
+			var s: Dictionary = fx["set"]
+			if s.has("mass_cap"):
+				out.append({"text": tr("Capacidade do foguete: %d") % int(s["mass_cap"]), "good": true, "neutral": true})
+			continue
+		var v := float(fx[k])
+		if v == 0.0:
+			continue
+		var txt := ""
+		if k == "energy_mult":
+			txt = "%+d%% %s" % [int(round(v * 100.0)), tr(PARAM_NAMES[k])]
+		else:
+			txt = "%+d %s" % [int(round(v)), tr("ciência" if k == "science" else PARAM_NAMES.get(k, k))]
+		out.append({"text": txt, "good": fx_good(k, v)})
+	return out
+
+
+func _open_board() -> void:
+	if _auto() or is_instance_valid(_board):
+		return
+	_board = UI.open_planning()
+	UI.lock()
+
+
+func _close_board() -> void:
+	if is_instance_valid(_board):
+		_board.queue_free()
+		UI.unlock()
+	_board = null
+
+
+# Cliente (base/engenheiro/astronauta 2): abre a prancheta quando o host abre o planejamento e fecha no fim.
+func _sync_board() -> void:
+	if not Net.is_client():
+		return
+	if planning_active and not is_instance_valid(_board):
+		_open_board()
+	elif not planning_active and is_instance_valid(_board) and not _board.is_deciding():
+		_close_board()
+
+
+# Cliente: o host pediu uma decisao (CML do meu conjunto ou voto do CML 1).
+func _on_plan_asked(req: int, payload: Dictionary) -> void:
+	_open_board()
+	var c: int = await _board.choose(payload["cards"], String(payload["title"]))
+	Net.plan_answer(req, c)
+
+
+func _auto_pick(count: int) -> int:
+	var v: int = int(auto_picks.pop_front()) if not auto_picks.is_empty() else 0
+	return clampi(v, 0, count - 1)
+
+
+## Quem decide cada CML: os 8 CMLs (2..9) formam 4 conjuntos de 2 sorteados entre os jogadores
+## (sem multiplayer, o jogador decide todos). O CML 1 e votado por todos.
+func _assign_owners() -> void:
+	_owner_peer = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+	var ids: Array = [1]
+	if Net.is_host() and Net.partner_connected:
+		for id in Net.roster:
+			if int(id) != 1:
+				ids.append(int(id))
+	ids.shuffle()
+	for k in 4:
+		var owner: int = ids[k % ids.size()]
+		_owner_peer[1 + 2 * k] = owner
+		_owner_peer[2 + 2 * k] = owner
+	plan_owners = []
+	for n in 9:
+		var peer: int = _owner_peer[n]
+		plan_owners.append(int(Net.roster.get(peer, {}).get("role", Net.Role.ASTRONAUT)) if Net.is_online() else int(Net.Role.ASTRONAUT))
+
+
+## Mostra as alternativas ao jogador que decide este CML (local ou remoto) e devolve o indice.
+func _ask_cards(cml: int, title: String, cards: Array) -> int:
+	if _auto():
+		return _auto_pick(cards.size())
+	if not _planning:
+		var labels: Array = []
+		for c in cards:
+			labels.append(String(c["label"]))
+		return await UI.choose(labels, title)
+	var peer: int = _owner_peer[clampi(cml, 1, 9) - 1] if not _owner_peer.is_empty() else 1
+	if Net.is_host() and peer != 1:
+		var c: int = await Net.plan_ask(peer, {"cml": cml, "title": title, "cards": cards})
+		if c < 0:   # o jogador saiu: escolhe a primeira alternativa possivel
+			for k in cards.size():
+				if bool(cards[k].get("ok", true)):
+					return k
+			return 0
+		return c
+	_open_board()
+	return await _board.choose(cards, title)
+
+
+## CML 1: todos votam; a maioria decide, empate = sorteio entre os empatados.
+func _vote_cards(title: String, cards: Array) -> int:
+	if _auto():
+		return _auto_pick(cards.size())
+	var peers: Array = []
+	if Net.is_host() and Net.partner_connected:
+		for id in Net.roster:
+			if int(id) != 1:
+				peers.append(int(id))
+	var req := 0
+	if not peers.is_empty():
+		req = Net.plan_begin({"cml": 1, "title": title, "cards": cards}, peers)
+		plan_hint = plan_hint + ("\n" if plan_hint != "" else "") + tr("VOTAÇÃO: cada jogador escolhe; a maioria decide (empate: sorteio).")
+		changed.emit()
+	_open_board()
+	var votes: Array = [await _board.choose(cards, title)]
+	if req != 0:
+		var got: Dictionary = await Net.plan_collect(req, peers, 90.0)
+		for v in got.values():
+			if int(v) >= 0 and int(v) < cards.size():
+				votes.append(int(v))
+	var counts: Array = []
+	counts.resize(cards.size())
+	counts.fill(0)
+	for v in votes:
+		counts[int(v)] += 1
+	var top := 0
+	for c in counts:
+		top = maxi(top, int(c))
+	var tied: Array = []
+	for k in counts.size():
+		if counts[k] == top:
+			tied.append(k)
+	var win: int = tied.pick_random()
+	if votes.size() > 1:
+		var parts: Array = []
+		for k in counts.size():
+			parts.append("%s: %d" % [cards[k]["label"], counts[k]])
+		plan_hint = tr("Votos: ") + ", ".join(PackedStringArray(parts))
+		changed.emit()
+	return win
 
 
 func _advance(n: int) -> void:
@@ -273,6 +465,15 @@ func _advance(n: int) -> void:
 
 
 ## Roda os 9 estagios. O host decide; o cliente (cientista) acompanha pelo estado espelhado.
+func _begin_planning() -> void:
+	_planning = true
+	planning_active = true
+	_assign_owners()
+	plan_cml = 1
+	changed.emit()
+	_open_board()
+
+
 func run_planning() -> void:
 	var pick: int = await _ask([tr("Planejar a missão (CML 1 a 9)"), tr("Missão rápida (plano padrão)")], tr("Antes do lançamento"))
 	if pick != 0:
@@ -281,7 +482,7 @@ func run_planning() -> void:
 		decisions.append({"cml": 0, "label": "Plano padrão (sem planejamento)", "fx": {}})
 		changed.emit()
 		return
-	await _say([tr("Nesta fase vocês projetam a missão na Terra. Cada decisão muda a nave e o que acontece no voo."), tr("Os 9 estágios CML medem a maturidade de uma missão: de uma ideia no guardanapo até o projeto pronto para construir.")])
+	_begin_planning()
 	await _cml1()
 	await _cml2()
 	await _cml3()
@@ -291,15 +492,21 @@ func run_planning() -> void:
 	await _cml7()
 	await _cml8()
 	await _cml9()
+	planning_active = false
+	plan_hint = ""
+	_planning = false
+	changed.emit()
+	_close_board()
 
 
 func _cml1() -> void:
 	await _intro(1)
-	await _choose_option(1, tr("Objetivo da missão"), [
+	await _say([tr("Nesta fase vocês projetam a missão na Terra. Cada decisão muda a nave e o que acontece no voo."), tr("Os 9 estágios CML medem a maturidade de uma missão: de uma ideia no guardanapo até o projeto pronto para construir.")])
+	await _choose_option(1, tr("Objetivo da missão (voto)"), [
 		{"label": "Cultivar bionutrientes", "desc": "Testar fungos como fonte de alimento no espaço.", "fx": {"science": 10.0, "set": {"objective": "bio"}}},
 		{"label": "Medir radiação cislunar", "desc": "Mapear a radiação fora da proteção da Terra.", "fx": {"science": 10.0, "risk": 5.0, "set": {"objective": "radiation"}}},
 		{"label": "Testar comunicação óptica", "desc": "Provar um enlace de dados mais rápido.", "fx": {"science": 5.0, "comms": 15.0, "set": {"objective": "comms"}}},
-	])
+	], true)
 	_advance(1)
 
 
@@ -369,11 +576,16 @@ func _cml6() -> void:
 		apply_fx({"credits": 5.0})
 		decisions.append({"cml": 6, "label": "Projeto consistente", "fx": {"credits": 5.0}})
 		_advance(6)
+		if _planning and not _auto():
+			await _ask_cards(6, tr("Revisão cruzada"), [{"label": tr("Continuar"), "desc": tr("Nenhuma inconsistência encontrada."), "fx": {"credits": 5.0}, "ok": true}])
 		return
 	for inc in list:
 		await _say(tr("INCONSISTÊNCIA: ") + tr(inc["text"]))
-		var fix_cost := " [%s]" % _fx_text(inc["fix"])
-		var i: int = await _ask([tr("Corrigir") + fix_cost, tr("Assumir o risco (risco +6)")], tr("O que fazer?"))
+		var cards: Array = [
+			{"label": tr("Corrigir"), "desc": tr("Refazer essa parte do projeto."), "fx": inc["fix"], "ok": _can_afford(inc["fix"])},
+			{"label": tr("Assumir o risco"), "desc": tr("Seguir assim e torcer para dar certo."), "fx": {"risk": 6.0}, "ok": true},
+		]
+		var i: int = await _ask_cards(6, tr("O que fazer?"), cards)
 		if i == 0 and _can_afford(inc["fix"]):
 			apply_fx(inc["fix"])
 			decisions.append({"cml": 6, "label": "Corrigiu: " + String(inc["text"]), "fx": inc["fix"].duplicate(true)})
@@ -389,28 +601,29 @@ func _cml7() -> void:
 	await _say([tr("Simulando a missão no papel... estes são os 3 maiores riscos."), tr("Cada mitigação custa %d créditos. O que ficar sem mitigação acontece com mais chance durante o voo.") % int(MITIGATE_COST)])
 	mitigated = []
 	while true:
-		var labels: Array = []
+		var cards: Array = []
 		var ids: Array = []
 		for id in RISKS:
 			if mitigated.has(id):
 				continue
-			labels.append(tr("Mitigar: ") + tr(RISKS[id]["name"]) + " [-%d %s]" % [int(MITIGATE_COST), tr("créditos")])
+			var fx: Dictionary = RISKS[id]["fx"].duplicate()
+			fx["credits"] = -MITIGATE_COST
+			cards.append({"label": tr("Mitigar: ") + tr(RISKS[id]["name"]), "desc": tr("Reduz a chance deste evento no voo."), "fx": fx, "ok": _can_afford(fx)})
 			ids.append(id)
-		labels.append(tr("Concluir análise de riscos"))
-		var i: int = await _ask(labels, tr("Análise de riscos"))
+		cards.append({"label": tr("Concluir análise de riscos"), "desc": tr("O que não foi mitigado acontece com mais chance."), "fx": {}, "ok": true})
+		var i: int = await _ask_cards(7, tr("Análise de riscos"), cards)
 		if i < 0 or i >= ids.size():
 			break
 		if not _can_afford({"credits": -MITIGATE_COST}):
 			if _auto():
 				break
-			await _say(tr("Créditos insuficientes para esta opção."))
 			continue
 		var id: String = ids[i]
 		mitigated.append(id)
-		var fx: Dictionary = RISKS[id]["fx"].duplicate()
-		fx["credits"] = -MITIGATE_COST
-		apply_fx(fx)
-		decisions.append({"cml": 7, "label": "Mitigou: " + String(RISKS[id]["name"]), "fx": fx})
+		var fx2: Dictionary = RISKS[id]["fx"].duplicate()
+		fx2["credits"] = -MITIGATE_COST
+		apply_fx(fx2)
+		decisions.append({"cml": 7, "label": "Mitigou: " + String(RISKS[id]["name"]), "fx": fx2})
 	accepted_risks = []
 	for id in RISKS:
 		if not mitigated.has(id):
@@ -438,15 +651,24 @@ func _cml8() -> void:
 			failing.append(r)
 	await _say(lines)
 	if failing.is_empty():
-		await _say(tr("PDR aprovado sem pendências."))
+		await _say(lines + [tr("PDR aprovado sem pendências.")])
 		decisions.append({"cml": 8, "label": "PDR aprovado", "fx": {}})
 		_advance(8)
+		if _planning and not _auto():
+			await _ask_cards(8, tr("Decisão da banca"), [{"label": tr("Continuar"), "desc": tr("PDR aprovado sem pendências."), "fx": {}, "ok": true}])
 		return
 	var total_fix := 0.0
+	var fix_fx := {"credits": 0.0}
 	for r in failing:
 		total_fix += absf(float(r["fix"]["credits"]))
-	var opts := [tr("Pedir ajuste do projeto (-%d créditos)") % int(total_fix), tr("Aprovar com dispensa (risco +%d)") % (8 * failing.size())]
-	var i: int = await _ask(opts, tr("Decisão da banca"))
+		for k in r["fix"]:
+			fix_fx[k] = float(fix_fx.get(k, 0.0)) + float(r["fix"][k])
+	var waiver_fx := {"risk": 8.0 * failing.size()}
+	var cards: Array = [
+		{"label": tr("Pedir ajuste do projeto"), "desc": tr("Corrigir os requisitos que falharam."), "fx": fix_fx, "ok": p("credits") >= total_fix},
+		{"label": tr("Aprovar com dispensa"), "desc": tr("Seguir sem corrigir: o risco aumenta."), "fx": waiver_fx, "ok": true},
+	]
+	var i: int = await _ask_cards(8, tr("Decisão da banca"), cards)
 	if i == 0 and p("credits") >= total_fix:
 		for r in failing:
 			apply_fx(r["fix"])
@@ -469,11 +691,13 @@ func summary_lines() -> Array:
 func _cml9() -> void:
 	await _intro(9)
 	await _say(summary_lines())
-	await _ask([tr("Autorizar o lançamento")], tr("CDR: decisão final"))
+	await _ask_cards(9, tr("CDR: decisão final"), [{"label": tr("Autorizar o lançamento"), "desc": tr("O projeto está pronto para construir e lançar."), "fx": {}, "ok": true}])
 	decisions.append({"cml": 9, "label": "Lançamento autorizado", "fx": {}})
 	planned = true
 	_advance(9)
 	await _say(tr("Lançamento autorizado! Três tripulantes embarcam; a base na Terra acompanha."))
+	if _planning and not _auto():
+		await _ask_cards(1, tr("Lançamento"), [{"label": tr("Iniciar a missão"), "desc": tr("Lançamento autorizado! Três tripulantes embarcam; a base na Terra acompanha."), "fx": {}, "ok": true}])
 
 
 # ============================ retorno e relatorio ============================

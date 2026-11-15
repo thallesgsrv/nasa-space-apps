@@ -85,11 +85,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # OPCOES: escolher o idioma (Portugues / English). A escolha fica salva.
 func _options() -> void:
-	var i := await UI.choose(["Português", "English", tr("Voltar")], "Idioma / Language")
-	if i == 0:
-		Lang.set_language("pt")
-	elif i == 1:
-		Lang.set_language("en")
+	await UI.options_menu()
 	for k in _labels.size():
 		_labels[k].text = tr(OPTIONS[k])
 	_hint.text = tr("W / S: escolher     F ou Enter: confirmar")

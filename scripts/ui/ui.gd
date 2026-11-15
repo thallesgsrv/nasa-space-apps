@@ -14,6 +14,7 @@ const GRID := preload("res://scripts/ui/grid_screen.gd")
 const PETRI := preload("res://scripts/ui/petri_game.gd")
 const DODGE := preload("res://scripts/ui/ship_dodge.gd")
 const MICROSCOPE := preload("res://scripts/ui/microscope_game.gd")
+const PLANNING := preload("res://scripts/ui/planning_board.gd")
 const MURAL := preload("res://scripts/ui/formula_mural.gd")
 const REAGENT := preload("res://scripts/ui/reagent_game.gd")
 
@@ -36,6 +37,8 @@ var busy: bool:
 
 # HUD
 var _hud: Control
+var _credits_box: Control
+var _credits_label: Label
 var _bars: Dictionary = {}       # nome -> ColorRect (preenchimento)
 var _hp_fill: ColorRect
 var _static_labels: Array[Label] = []   # textos fixos que mudam quando o idioma muda
@@ -136,6 +139,7 @@ func _ready() -> void:
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_fade)
 	GameState.changed.connect(_refresh_hud)
+	MissionState.changed.connect(_refresh_hud)
 	GameState.notice.connect(toast)
 	Missions.changed.connect(_refresh_tracker)
 	Voyage.changed.connect(_refresh_voyage)
@@ -199,6 +203,14 @@ func retranslate() -> void:
 	_refresh_hud()
 	_refresh_voyage()
 	_refresh_tracker()
+
+
+## Vida e necessidades (comida, sono, agua) so existem para quem esta na nave; o cientista da Terra nao tem.
+func show_vitals(v: bool) -> void:
+	for fill in _bars.values():
+		fill.get_parent().visible = v
+	_hp_fill.get_parent().visible = v
+	_credits_box.position.x = 370.0 if v else 20.0
 
 
 func show_hud(v: bool) -> void:
@@ -298,6 +310,15 @@ func open_petri() -> Control:
 	return g
 
 
+## Prancheta do planejamento CML (fecha com queue_free + unlock feitos pelo MissionState).
+func open_planning() -> Control:
+	var g = PLANNING.new()
+	g.configure()
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
+	return g
+
+
 ## Minigames do laboratorio (Terra): microscopio, mural de formulas e preparo de reagente.
 ## Cada um tem o sinal closed e o dicionario result; espere g.closed e depois g.queue_free().
 func open_microscope(diff: int) -> Control:
@@ -343,6 +364,46 @@ func open_grid(kind: String) -> Control:
 
 
 ## Menu de escolha; devolve o indice escolhido ou -1 se cancelar (Esc).
+## Barra de tempo na tela (ex.: producao de comida/agua): enche durante "seconds" e espera acabar.
+func timer_bar(text: String, seconds: float) -> void:
+	var w := 520.0
+	var box := NinePatchRect.new()
+	box.texture = TEX_BAR
+	for side in ["left", "right", "top", "bottom"]:
+		box.set("patch_margin_" + side, 20)
+	box.size = Vector2(w, 64)
+	box.position = Vector2((VIEW.x - w) / 2.0, 100)
+	add_child(box)
+	var lab := _label(text, 20)
+	lab.position = Vector2(24, 20)
+	box.add_child(lab)
+	var bg := ColorRect.new()
+	bg.color = Color(INK, 0.35)
+	bg.position = Vector2(w - 190.0, 22)
+	bg.size = Vector2(150, 20)
+	box.add_child(bg)
+	var fill := ColorRect.new()
+	fill.color = Color("3aa6e8")
+	fill.position = bg.position
+	fill.size = Vector2(0, 20)
+	box.add_child(fill)
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		fill.size.x = 150.0 * v
+		lab.text = "%s %d s" % [text, ceili(seconds * (1.0 - v))], 0.0, 1.0, seconds)
+	await tw.finished
+	box.queue_free()
+
+
+## Opcoes (menu inicial e menu de pausa): idioma. A escolha fica salva (Lang).
+func options_menu() -> void:
+	var i := await choose(["Português", "English", tr("Voltar")], "Idioma / Language")
+	if i == 0:
+		Lang.set_language("pt")
+	elif i == 1:
+		Lang.set_language("en")
+
+
 func choose(options: Array, title: String = "") -> int:
 	lock()
 	_open_menu(options, title)
@@ -418,6 +479,24 @@ func _build_hud() -> void:
 		_bars[d[0]] = _make_bar(Vector2(x, 944), Vector2(pw, 64), d[1], d[2])
 	# vida (canto superior esquerdo)
 	_hp_fill = _make_bar(Vector2(20, 20), Vector2(pw, 64), "VIDA", Color("e04a4a"))
+	# creditos da missao (sempre na tela: o que sobra vira pontos no relatorio)
+	_credits_box = NinePatchRect.new()
+	_credits_box.texture = TEX_BAR
+	for side in ["left", "right", "top", "bottom"]:
+		_credits_box.set("patch_margin_" + side, 20)
+	_credits_box.position = Vector2(370, 20)
+	_credits_box.size = Vector2(300, 64)
+	_hud.add_child(_credits_box)
+	var clab := _label(tr("CRÉDITOS"), 22)
+	clab.set_meta("k", "CRÉDITOS")
+	_static_labels.append(clab)
+	clab.position = Vector2(24, 20)
+	_credits_box.add_child(clab)
+	_credits_label = _label("", 26)
+	_credits_label.position = Vector2(150, 18)
+	_credits_label.size = Vector2(130, 30)
+	_credits_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_credits_box.add_child(_credits_label)
 
 
 func _make_bar(pos: Vector2, size: Vector2, text: String, color: Color) -> ColorRect:
@@ -456,6 +535,7 @@ func _refresh_hud() -> void:
 	_set_fill(_bars["sleep"], GameState.sleep)
 	_set_fill(_bars["thirst"], GameState.thirst)
 	_set_fill(_hp_fill, GameState.health)
+	_credits_label.text = str(int(MissionState.p("credits")))
 
 
 func _set_fill(fill: ColorRect, value: float) -> void:
@@ -691,7 +771,7 @@ func _build_tracker() -> void:
 
 func _build_voyage() -> void:
 	_voyage = Control.new()
-	_voyage.position = Vector2(20, 96)
+	_voyage.position = Vector2(20, 100)
 	_voyage.size = Vector2(400, 160)
 	_voyage.visible = false
 	add_child(_voyage)

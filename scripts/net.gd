@@ -22,6 +22,7 @@ signal game_start_requested         # (cliente) o host mandou comecar
 signal restart_decided(choice: int) # (cliente) decisao do host no game over: 0 recomecar, 1 menu
 signal partner_room_changed
 signal roster_changed              # a lista de jogadores/papeis mudou
+signal plan_asked(req: int, payload: Dictionary)   # (cliente) o host pediu uma decisao do planejamento
 
 enum Mode { OFFLINE, HOST, CLIENT }
 enum Role { ASTRONAUT, SCIENTIST, ENGINEER, ASTRONAUT2 }
@@ -48,7 +49,7 @@ const HOST_TIMEOUT := 3.5           # sala some da lista se nao anunciar por est
 ## Variaveis replicadas do host para o cliente (autoload -> variaveis).
 const SYNC := {
 	"GameState": ["running", "food", "thirst", "sleep", "health", "heat", "heat_extra_rate", "meltdown_left",
-		"inventory", "storage", "output_rations", "capsule_item", "capsule_left", "capsule_hold",
+		"inventory", "storage", "output_rations", "output_water", "vending", "capsule_item", "capsule_left", "capsule_hold",
 		"capsule_ready", "route", "conditions", "tutorial_done"],
 	"Missions": ["active", "step", "finished", "flags", "heater_state", "heating_left", "analyzed",
 		"data_sent", "sample_color", "sample_ok", "result_lines"],
@@ -57,7 +58,7 @@ const SYNC := {
 	"Solar": ["real", "base_flux", "base_angle", "decided", "alert_sent", "countdown", "shield_on",
 		"resolved", "inverted_left", "last_result", "_t", "source_tag", "source_label"],
 	"MissionState": ["planned", "objective", "cml_done", "params", "decisions", "accepted_risks", "mitigated",
-		"log", "stats", "report"],
+		"log", "stats", "report", "plan_owners", "plan_cml", "planning_active", "plan_hint"],
 }
 
 ## Chamadas que o cliente (base) pode pedir ao host: autoload -> metodos permitidos.
@@ -624,6 +625,66 @@ func wait_restart_decision() -> int:
 	var c := pending_decision
 	pending_decision = -1
 	return c
+
+
+# ---------------------------------------------------------------- planejamento em equipe (CML)
+var _plan_req := 0
+var _plan_answers: Dictionary = {}   # id do pedido -> {id do jogador: indice escolhido}
+
+
+## Host: pede a cada jogador de `peers` uma decisao (mostra os cartoes `payload` na prancheta dele).
+func plan_begin(payload: Dictionary, peers: Array) -> int:
+	_plan_req += 1
+	var id := _plan_req
+	_plan_answers[id] = {}
+	for pr in peers:
+		_rpc_plan_ask.rpc_id(int(pr), id, payload)
+	return id
+
+
+## Host: espera as respostas (quem saiu da partida nao e esperado). Devolve {jogador: indice}.
+func plan_collect(req: int, peers: Array, timeout: float) -> Dictionary:
+	var left := timeout
+	while left > 0.0:
+		var done := true
+		for pr in peers:
+			if roster.has(int(pr)) and not (_plan_answers[req] as Dictionary).has(int(pr)):
+				done = false
+		if done:
+			break
+		await get_tree().create_timer(0.25).timeout
+		left -= 0.25
+	var out: Dictionary = _plan_answers.get(req, {})
+	_plan_answers.erase(req)
+	return out
+
+
+## Host: pergunta a UM jogador e devolve o indice (-1 se ele saiu ou nao respondeu).
+func plan_ask(peer: int, payload: Dictionary) -> int:
+	var id := plan_begin(payload, [peer])
+	var got: Dictionary = await plan_collect(id, [peer], 300.0)
+	return int(got.get(peer, -1))
+
+
+## Cliente: devolve a escolha ao host.
+func plan_answer(req: int, choice: int) -> void:
+	if is_client():
+		_rpc_plan_answer.rpc_id(1, req, choice)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_plan_ask(req: int, payload: Dictionary) -> void:
+	if is_client():
+		plan_asked.emit(req, payload)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_plan_answer(req: int, choice: int) -> void:
+	if not is_host():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _plan_answers.has(req):
+		(_plan_answers[req] as Dictionary)[sender] = choice
 
 
 # ---------------------------------------------------------------- jogadores, papeis e posicao
