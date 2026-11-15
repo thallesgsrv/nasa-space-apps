@@ -435,14 +435,12 @@ func _mission_console() -> void:
 			acts.append("retorno")
 		elif Missions.is_step("rota"):
 			title = tr("Escolha a rota")
-			for r in ROUTES:
-				opts.append(tr("Iniciar viagem: ") + tr(r))
-				acts.append("rota:" + r)
+			opts.append(tr("Abrir o mapa espacial e escolher o destino"))
+			acts.append("escolher_rota")
 		else:
 			title = tr("Rota: ") + (tr(GameState.route) if GameState.route != "" else tr("nenhum"))
-			for r in ROUTES:
-				opts.append(tr("Ir para ") + tr(r))
-				acts.append("define:" + r)
+			opts.append(tr("Abrir o mapa espacial e definir o destino"))
+			acts.append("definir_rota")
 		if Voyage.dodge_unlocked:
 			opts.append(tr("Minigame: campo de asteroides"))
 			acts.append("desvio")
@@ -455,14 +453,23 @@ func _mission_console() -> void:
 		if a == "desvio":
 			await _jogar_desvio(true)
 		elif a == "mapa":
-			await UI.say(Voyage.map_text())
+			await UI.run_map("view", Voyage.route)
+			if Voyage.asteroid_visible() or Voyage.base_alert != "":
+				await UI.say(Voyage.map_text().slice(1))
 		elif a == "manobra":
 			await UI.say(Voyage.maneuver())
 		elif a == "retorno":
 			await MissionState.run_return()
 			break
-		elif a.begins_with("rota:"):
-			var r := a.substr(5)
+		elif a == "definir_rota":
+			var r2 := await UI.run_map("select", GameState.route)
+			if r2 != "":
+				GameState.route = r2
+				await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
+		elif a == "escolher_rota":
+			var r := await UI.run_map("select", GameState.route)
+			if r == "":
+				continue
 			var c := await UI.choose([tr("Confirmar viagem para %s") % tr(r), tr("Voltar")], tr("Rota: ") + tr(r))
 			if c == 0:
 				Voyage.start(r)
@@ -472,10 +479,6 @@ func _mission_console() -> void:
 				await UI.say(tr("Pilote a nave pequena pelo campo de asteroides! Termine sem nenhum dano para liberar este minigame na cabine."))
 				await _jogar_desvio(false)
 				break
-		else:
-			var r2 := a.substr(7)
-			GameState.route = r2
-			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
 
 
 # Minigame da nave: desviar de asteroides. Sem dano = libera para jogar quando quiser na cabine.
@@ -608,7 +611,8 @@ func _base_viagem() -> void:
 			cards.append({"label": tr("Monitor da nave"), "desc": tr("Energia, combustível e progresso da viagem."), "glyph": "monitor", "color": Color("5a8aff")})
 			cards.append({"label": tr("Previsão de perigos"), "desc": tr("O que o próximo sorteio de eventos reserva."), "glyph": "forecast", "color": Color("ffb04a")})
 			cards.append({"label": tr("Enviar alerta à nave"), "desc": tr("Avisar a tripulação sobre o perigo em andamento."), "glyph": "alert", "color": Color("ff7a5a")})
-			acts.append_array(["monitor", "previsao", "alerta"])
+			cards.append({"label": tr("Mapa espacial"), "desc": tr("Onde a nave está na rota."), "glyph": "asteroid", "color": Color("c8b0a0")})
+			acts.append_array(["monitor", "previsao", "alerta", "mapa"])
 		if Missions.is_step("solar"):
 			cards.append({"label": tr("Terminal solar (CME)"), "desc": tr("Decidir sobre a tempestade solar."), "glyph": "sun", "color": Color("ffd86a")})
 			acts.append("solar")
@@ -624,6 +628,8 @@ func _base_viagem() -> void:
 				await UI.run_board("forecast", [_close_card()])
 			"alerta":
 				await _enviar_alerta()
+			"mapa":
+				await UI.run_map("view", Voyage.route)
 			"solar":
 				await _terminal_solar()
 				if not Missions.is_step("solar"):

@@ -488,6 +488,8 @@ func _test_every_interaction_and_minigame() -> void:
 		"base: previsao": func(): return _open_board("forecast"),
 		"base: asteroide": func(): return _open_board("asteroid", {"speed": 8.0, "dist": 200}),
 		"relatorio final": func(): return _open_report(),
+		"mapa espacial (escolher)": func(): return _open_map("select"),
+		"mapa espacial (acompanhar)": func(): return _open_map("view"),
 		"mochila": func(): return UI.open_grid("inventory"),
 		"armario": func(): return UI.open_grid("storage"),
 	}
@@ -842,6 +844,16 @@ func _test_new_rules() -> void:
 		check(MissionState._owner_peer[1 + 2 * k] == MissionState._owner_peer[2 + 2 * k], "CML %d e %d tem o mesmo dono (conjunto de 2)" % [2 + 2 * k, 3 + 2 * k])
 	var chips := MissionState.fx_chips({"credits": -20.0, "risk": 5.0, "science": 10.0})
 	check(chips.size() == 3 and not chips[0]["good"] and not chips[1]["good"] and chips[2]["good"], "etiquetas: custo e risco ruins, ciencia boa")
+	# menus e avisos nunca saem da tela (titulo longo quebra linha)
+	for title in ["Pausa", "Voltar ao menu inicial? Todo o progresso sera perdido. ".repeat(6)]:
+		UI._open_menu(["Nao, continuar jogando", "Sim, tenho certeza"], title)
+		var mr := Rect2(UI._menu.position, UI._menu.size)
+		check(mr.position.x >= 0.0 and mr.position.y >= 0.0 and mr.end.x <= 1536.0 and mr.end.y <= 1024.0, "menu dentro da tela (%s)" % str(mr))
+		UI._menu.visible = false
+		UI._menu_active = false
+	UI.toast("Missao atualizada: ".repeat(20), 0.1)
+	var tr_ := Rect2(UI._toast.position, UI._toast.size)
+	check(tr_.position.x >= 0.0 and tr_.end.x <= 1536.0, "aviso curto dentro da tela")
 	# voto do CML 1 em modo automatico segue a escolha
 	MissionState.reset()
 	GameState.reset()
@@ -859,5 +871,12 @@ func _open_report() -> Control:
 	MissionState.report = MissionState.build_report()
 	var g = UI.REPORT.new()
 	g.configure()
+	UI._add_overlay(g)
+	return g
+
+
+func _open_map(mode: String) -> Control:
+	var g = UI.SPACE_MAP.new()
+	g.configure(mode, "Lua")
 	UI._add_overlay(g)
 	return g

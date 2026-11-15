@@ -784,6 +784,20 @@ const EN := {
 	"Sair do minigame (Esc)": "Leave the minigame (Esc)",
 	"(F ou clique: continuar)": "(F or click: continue)",
 	"Energia, combustível e progresso da viagem.": "Energy, fuel and voyage progress.",
+	"Abrir o mapa espacial e escolher o destino": "Open the space map and choose the destination",
+	"Abrir o mapa espacial e definir o destino": "Open the space map and set the destination",
+	"Onde a nave está na rota.": "Where the ship is on its route.",
+	"MAPA ESPACIAL": "SPACE MAP",
+	"Escolha o destino da viagem.": "Choose the voyage destination.",
+	"Acompanhe a nave pela rota.": "Follow the ship along its route.",
+	"RADAR": "RADAR",
+	"Tempo de viagem: %d s": "Travel time: %d s",
+	"Limite da missão: %d s": "Mission limit: %d s",
+	"Perigos possíveis: comunicação, asteroide, reator": "Possible hazards: communication, asteroid, reactor",
+	"PROGRESSO %d%%": "PROGRESS %d%%",
+	"F ou Esc: fechar": "F or Esc: close",
+	"F: escolher este destino": "F: choose this destination",
+	"←/→ ou mouse: trocar de destino     Esc: voltar": "←/→ or mouse: change destination     Esc: back",
 }
 
 var language := "pt"

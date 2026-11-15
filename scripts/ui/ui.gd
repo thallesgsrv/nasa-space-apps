@@ -17,6 +17,7 @@ const MICROSCOPE := preload("res://scripts/ui/microscope_game.gd")
 const PLANNING := preload("res://scripts/ui/planning_board.gd")
 const DECISION := preload("res://scripts/ui/decision_board.gd")
 const REPORT := preload("res://scripts/ui/report_screen.gd")
+const SPACE_MAP := preload("res://scripts/ui/space_map.gd")
 const MURAL := preload("res://scripts/ui/formula_mural.gd")
 const REAGENT := preload("res://scripts/ui/reagent_game.gd")
 
@@ -335,6 +336,19 @@ func open_planning() -> Control:
 	return g
 
 
+## Mapa espacial. mode "select" devolve a rota escolhida ("" = voltou); "view" so mostra a viagem.
+func run_map(mode: String, current_route: String = "") -> String:
+	var g = SPACE_MAP.new()
+	g.configure(mode, current_route)
+	_add_overlay(g)
+	move_child(g, _fade.get_index())
+	lock()
+	var r: String = await g.closed
+	g.queue_free()
+	unlock()
+	return r
+
+
 ## Relatorio pos-missao (3 paginas graficas).
 func show_report() -> void:
 	var g = REPORT.new()
@@ -537,7 +551,7 @@ func toast(text: String, seconds: float = 3.0) -> void:
 	var lines := maxi(1, ceili(text_w / (w - 80.0)))
 	var h := 64.0 + float(lines - 1) * 30.0
 	_toast.size = Vector2(w, h)
-	_toast.position = Vector2((VIEW.x - w) / 2.0, 24)
+	_toast.position = Vector2(clampf((VIEW.x - w) / 2.0, 20.0, VIEW.x - w - 20.0), 24)
 	_toast_label.custom_minimum_size = Vector2.ZERO
 	_toast_label.position = Vector2.ZERO
 	_toast_label.size = _toast.size
@@ -789,20 +803,29 @@ func _open_menu(options: Array, title: String) -> void:
 		r.queue_free()
 	_menu_rows.clear()
 	var row_h := 60.0
+	var max_w := VIEW.x - 160.0                     # a caixa nunca passa da tela
 	var width := 0.0
-	if title != "":
-		width = FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x
+	var opt_w := 0.0
 	for o in options:
-		width = maxf(width, FONT.get_string_size(str(o), HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x)
-	var w := width + 200.0
-	var top := 46.0 + (64.0 if title != "" else 0.0)
+		opt_w = maxf(opt_w, FONT.get_string_size(str(o), HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x)
+	var title_w := FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x if title != "" else 0.0
+	width = maxf(opt_w, minf(title_w, max_w - 200.0))
+	var w := minf(width + 200.0, max_w)
+	# titulo longo quebra linha dentro da caixa
+	var title_lines := 1
+	if title != "":
+		title_lines = maxi(1, ceili(title_w / (w - 128.0)))
+	var title_h := 64.0 + float(title_lines - 1) * 40.0 if title != "" else 0.0
+	var top := 46.0 + title_h
 	var h := top + options.size() * row_h + 40.0
 	_menu_box.size = Vector2(w, h)
 	_menu.size = Vector2(w, h)
-	_menu.position = Vector2(VIEW.x - w - 90.0, 640.0 - h)
+	_menu.position = Vector2(clampf(VIEW.x - w - 90.0, 40.0, VIEW.x - w - 40.0), clampf(640.0 - h, 40.0, VIEW.y - h - 40.0))
 	_menu_title.text = title
 	_menu_title.visible = title != ""
+	_menu_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_menu_title.position = Vector2(64, 38)
+	_menu_title.size = Vector2(w - 128.0, title_h)
 	for i in options.size():
 		var lab := _label(str(options[i]), 32)
 		lab.position = Vector2(104, top + i * row_h)
