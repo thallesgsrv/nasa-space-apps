@@ -543,18 +543,39 @@ func choose(options: Array, title: String = "") -> int:
 	return idx
 
 
+## Quebra o texto em linhas que cabem em `width` (quebra manual: um Label com autowrap tem altura minima
+## imprevisivel e empurrava o texto para fora da caixa).
+func wrap_text(text: String, width: float, size: int) -> String:
+	var out: Array = []
+	for para in text.split("\n"):
+		var line := ""
+		for word in para.split(" "):
+			var cand := word if line == "" else line + " " + word
+			if line != "" and FONT.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
+				out.append(line)
+				line = word
+			else:
+				line = cand
+		out.append(line)
+	return "\n".join(PackedStringArray(out))
+
+
 func toast(text: String, seconds: float = 3.0) -> void:
-	_toast_label.text = text
-	# largura maxima: mensagens longas quebram linha em vez de sair da tela
-	var text_w := FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
-	var w := minf(text_w + 80.0, 1180.0)
-	var lines := maxi(1, ceili(text_w / (w - 80.0)))
-	var h := 64.0 + float(lines - 1) * 30.0
+	var max_w := 1180.0
+	var wrapped := wrap_text(text, max_w - 80.0, 24)
+	var line_count := wrapped.count("\n") + 1
+	var text_w := 0.0
+	for ln in wrapped.split("\n"):
+		text_w = maxf(text_w, FONT.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x)
+	var w := minf(text_w + 80.0, max_w)
+	var h := 64.0 + float(line_count - 1) * 32.0
+	_toast_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_toast_label.custom_minimum_size = Vector2.ZERO
+	_toast_label.text = wrapped
 	_toast.size = Vector2(w, h)
 	_toast.position = Vector2(clampf((VIEW.x - w) / 2.0, 20.0, VIEW.x - w - 20.0), 24)
-	_toast_label.custom_minimum_size = Vector2.ZERO
 	_toast_label.position = Vector2.ZERO
-	_toast_label.size = _toast.size
+	_toast_label.size = Vector2(w, h)
 	_toast.visible = true
 	_toast.modulate.a = 1.0
 	if _toast_tween:

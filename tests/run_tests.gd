@@ -851,9 +851,12 @@ func _test_new_rules() -> void:
 		check(mr.position.x >= 0.0 and mr.position.y >= 0.0 and mr.end.x <= 1536.0 and mr.end.y <= 1024.0, "menu dentro da tela (%s)" % str(mr))
 		UI._menu.visible = false
 		UI._menu_active = false
-	UI.toast("Missao atualizada: ".repeat(20), 0.1)
-	var tr_ := Rect2(UI._toast.position, UI._toast.size)
-	check(tr_.position.x >= 0.0 and tr_.end.x <= 1536.0, "aviso curto dentro da tela")
+	# aviso curto: o texto fica DENTRO da caixa, depois de qualquer sequencia de curto/longo
+	for msg in ["Dormitorio", "Missao atualizada: Aquecer o pacote na maquina de aquecimento (armazem, containers azuis a direita)", "OK", "Missao atualizada: ".repeat(20), "Terra"]:
+		UI.toast(msg, 0.1)
+		var tr_ := Rect2(UI._toast.position, UI._toast.size)
+		check(tr_.position.x >= 0.0 and tr_.end.x <= 1536.0, "aviso curto dentro da tela")
+		check(UI._toast_label.size.is_equal_approx(UI._toast.size) and UI._toast_label.get_minimum_size().y <= UI._toast.size.y, "texto do aviso cabe na caixa (min %s, caixa %s)" % [str(UI._toast_label.get_minimum_size()), str(UI._toast.size)])
 	# voto do CML 1 em modo automatico segue a escolha
 	MissionState.reset()
 	GameState.reset()
