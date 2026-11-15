@@ -1,4 +1,4 @@
-[gd_scene load_steps=30 format=3]
+[gd_scene load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://scripts/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/door.gd" id="2_door"]
@@ -79,6 +79,12 @@ size = Vector2(475, 235)
 
 [sub_resource type="RectangleShape2D" id="s24"]
 size = Vector2(400, 290)
+
+[sub_resource type="RectangleShape2D" id="s25"]
+size = Vector2(280, 290)
+
+[sub_resource type="RectangleShape2D" id="s26"]
+size = Vector2(300, 205)
 
 [node name="Laboratorio" type="Node2D"]
 script = ExtResource("1_room")
@@ -203,6 +209,24 @@ display_name = "Mesa de análise"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/MesaAnalise"]
 shape = SubResource("s24")
+
+[node name="MuralFormulas" type="Area2D" parent="Interativos"]
+position = Vector2(1225, 555)
+script = ExtResource("3_inter")
+action = "mural_formulas"
+display_name = "Mural de fórmulas"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/MuralFormulas"]
+shape = SubResource("s25")
+
+[node name="BancadaFrascos" type="Area2D" parent="Interativos"]
+position = Vector2(1135, 802.5)
+script = ExtResource("3_inter")
+action = "bancada_frascos"
+display_name = "Bancada de frascos"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interativos/BancadaFrascos"]
+shape = SubResource("s26")
 
 [node name="Spawns" type="Node2D" parent="."]
 

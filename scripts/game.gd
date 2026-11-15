@@ -126,8 +126,7 @@ func _swap_player(next: CharacterBody2D) -> void:
 # O nucleo ficou 12 s em 100%: a nave explode.
 func _on_exploded() -> void:
 	player.locked = true
-	Audio.stop_music(0.2)
-	Audio.sfx("explosao")
+	Audio.stop_music(0.2)   # o som da explosao ja tocou durante a contagem
 	UI.lock()
 	await UI.flash_white()
 	UI.unlock()

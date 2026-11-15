@@ -15,7 +15,7 @@ const BLUE := Color(0.25, 0.55, 1.0)
 
 var highlighted := false
 var _shape: CollisionShape2D
-var _marker: Label
+var _marker: Sprite2D
 var _t := 0.0
 
 
@@ -34,15 +34,9 @@ func _ready() -> void:
 func set_highlight(v: bool) -> void:
 	highlighted = v
 	if v and _marker == null:
-		_marker = Label.new()
-		_marker.text = "!"
-		_marker.add_theme_font_override("font", FONT)
-		_marker.add_theme_font_size_override("font_size", 64)
-		_marker.add_theme_color_override("font_color", Color("2a6bff"))
-		_marker.add_theme_color_override("font_outline_color", Color("ffffff"))
-		_marker.add_theme_constant_override("outline_size", 10)
-		_marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_marker.size = Vector2(60, 70)
+		_marker = Sprite2D.new()
+		_marker.texture = preload("res://assets/ui/alerta.png")
+		_marker.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		_marker.z_index = 60
 		add_child(_marker)
 	if _marker != null:
@@ -61,7 +55,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 	if _marker != null and _marker.visible:
 		var r := _rect()
-		_marker.position = Vector2(r.position.x + r.size.x / 2.0 - 30.0, r.position.y - 78.0 + sin(_t * 3.0) * 8.0)
+		_marker.position = Vector2(r.position.x + r.size.x / 2.0, r.position.y - 44.0 + sin(_t * 3.0) * 8.0)
 
 
 func _draw() -> void:

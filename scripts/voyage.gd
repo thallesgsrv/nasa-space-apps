@@ -39,6 +39,9 @@ const REACTOR_HEAT_JUMP := 25.0
 const POS_NAMES := ["N", "L", "S", "O"]
 
 var active := false
+var bonus := {}               # bonus dos minigames da base ainda nao usados (aplicados ao iniciar a viagem)
+var comms_cut := 0.0          # segundos a menos nos proximos apagoes de comunicacao
+var dodge_unlocked := false   # terminou o minigame da nave sem dano: libera jogar na cabine
 var route := ""
 var travel_time := 1.0
 var time_left := 0.0
@@ -97,10 +100,44 @@ func start(route_name: String) -> void:
 		energy_mult *= 1.2
 	if fx.get("mais_tempo", false):
 		time_left += 60.0
+	for k in bonus:
+		_apply_bonus(k, float(bonus[k]), true)
+	bonus = {}
 	_roll_next()
 	GameState.route = route_name
 	GameState.notice.emit(tr("Viagem iniciada: %s") % route_name)
 	changed.emit()
+
+
+## Bonus ganho nos minigames da base (Terra). Com a viagem em andamento vale na hora; antes dela
+## fica guardado e entra quando a viagem comecar. kind: time | energy | comms | mass | fuel.
+func grant(kind: String, amount: float) -> void:
+	if active:
+		_apply_bonus(kind, amount, false)
+		changed.emit()
+	else:
+		bonus[kind] = float(bonus.get(kind, 0.0)) + amount
+
+
+func _apply_bonus(kind: String, amount: float, at_start: bool) -> void:
+	match kind:
+		"time":
+			time_left += amount
+		"energy":
+			if at_start:
+				energy_mult *= maxf(0.6, 1.0 - amount * 0.006)
+			else:
+				energy = minf(100.0, energy + amount)
+		"fuel":
+			if at_start:
+				mass = maxf(70.0, mass - amount * 0.3)
+			else:
+				fuel = minf(100.0, fuel + amount)
+		"mass":
+			mass = maxf(70.0, mass - amount)
+		"comms":
+			comms_cut = minf(20.0, comms_cut + amount)
+			blackout_left = maxf(0.0, blackout_left - amount)
 
 
 func comms_ok() -> bool:
@@ -169,8 +206,8 @@ func _trigger(kind: String) -> void:
 	event = kind
 	match kind:
 		"comm":
-			blackout_left = BLACKOUT_TIME
-			GameState.notice.emit(tr("Interferência na comunicação! Sem contato com a base por %d s.") % int(BLACKOUT_TIME))
+			blackout_left = maxf(5.0, BLACKOUT_TIME - comms_cut)
+			GameState.notice.emit(tr("Interferência na comunicação! Sem contato com a base por %d s.") % int(blackout_left))
 		"asteroid":
 			var speed := randf_range(6.0, 12.0)
 			var eta := randf_range(28.0, 40.0)
@@ -186,12 +223,14 @@ func _trigger(kind: String) -> void:
 
 func _fail(reason: String) -> void:
 	active = false
+	comms_cut = 0.0
 	GameState.heat_extra_rate = 0.0
 	GameState.failed.emit(reason)
 
 
 func _arrive() -> void:
 	active = false
+	comms_cut = 0.0
 	event = ""
 	GameState.heat_extra_rate = 0.0
 	GameState.notice.emit(tr("Chegada ao destino: %s! Missão cumprida.") % tr(route))

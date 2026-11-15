@@ -90,6 +90,8 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
+	# som da contagem do nucleo acompanha a contagem (e pausa com menus)
+	Audio.sync_countdown(meltdown_left if running else -1.0, UI.busy and not UI.realtime)
 	if not running:
 		return
 	# a viagem da capsula segue mesmo com menus abertos

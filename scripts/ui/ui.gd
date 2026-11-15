@@ -12,6 +12,10 @@ const TEX_BAR := preload("res://assets/ui/panel_bar.png")
 const TEX_TOAST := preload("res://assets/ui/panel_toast.png")
 const GRID := preload("res://scripts/ui/grid_screen.gd")
 const PETRI := preload("res://scripts/ui/petri_game.gd")
+const DODGE := preload("res://scripts/ui/ship_dodge.gd")
+const MICROSCOPE := preload("res://scripts/ui/microscope_game.gd")
+const MURAL := preload("res://scripts/ui/formula_mural.gd")
+const REAGENT := preload("res://scripts/ui/reagent_game.gd")
 
 const INK := Color("1b2a5c")
 const VIEW := Vector2(1536, 1024)
@@ -67,8 +71,7 @@ var _panel_active := false
 var _tracker: Control
 var _tracker_label: Label
 var _tracker_icon: Control
-var _tracker_diamond: Polygon2D
-var _tracker_mark: Label
+var _tracker_mark: TextureRect
 var _tracker_open_left := 0.0
 var _tracker_last := ""
 const TRACKER_SHOW_TIME := 8.0
@@ -250,6 +253,36 @@ func open_petri() -> Control:
 	g.configure()
 	add_child(g)
 	move_child(g, _fade.get_index())   # cobre tudo (HUD, objetivo, avisos), so o fade fica por cima
+	return g
+
+
+## Minigames do laboratorio (Terra): microscopio, mural de formulas e preparo de reagente.
+## Cada um tem o sinal closed e o dicionario result; espere g.closed e depois g.queue_free().
+func open_microscope(diff: int) -> Control:
+	return _open_game(MICROSCOPE.new(), diff)
+
+
+func open_mural(hard: bool) -> Control:
+	return _open_game(MURAL.new(), hard)
+
+
+func open_reagent(diff: int) -> Control:
+	return _open_game(REAGENT.new(), diff)
+
+
+func _open_game(g: Control, arg: Variant) -> Control:
+	g.configure(arg)
+	add_child(g)
+	move_child(g, _hud.get_index() + 1)
+	return g
+
+
+## Abre o minigame de desviar de asteroides; espere g.closed e depois g.queue_free().
+func open_dodge(free_play: bool = false) -> Control:
+	var g = DODGE.new()
+	g.configure(free_play)
+	add_child(g)
+	move_child(g, _hud.get_index() + 1)
 	return g
 
 
@@ -589,7 +622,7 @@ func _build_tracker() -> void:
 	_tracker_label.size = Vector2(540, 90)
 	_tracker_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tracker.add_child(_tracker_label)
-	# icone recolhido: "!" azul com um losango piscando embaixo (clique ou V mostram a mensagem de novo)
+	# icone recolhido: losango "!" subindo e descendo (clique ou V mostram a mensagem de novo)
 	_tracker_icon = Control.new()
 	_tracker_icon.size = Vector2(70, 110)
 	_tracker_icon.position = Vector2(VIEW.x - 90.0, 100)
@@ -597,19 +630,14 @@ func _build_tracker() -> void:
 	_tracker_icon.visible = false
 	_tracker_icon.gui_input.connect(_on_tracker_icon_input)
 	add_child(_tracker_icon)
-	_tracker_mark = _label("!", 64)
-	_tracker_mark.add_theme_color_override("font_color", Color("2a6bff"))
-	_tracker_mark.add_theme_color_override("font_outline_color", Color.WHITE)
-	_tracker_mark.add_theme_constant_override("outline_size", 10)
-	_tracker_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tracker_mark.size = Vector2(70, 72)
+	_tracker_mark = TextureRect.new()
+	_tracker_mark.texture = preload("res://assets/ui/alerta.png")
+	_tracker_mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_tracker_mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_tracker_mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_tracker_mark.size = Vector2(70, 70)
 	_tracker_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tracker_icon.add_child(_tracker_mark)
-	_tracker_diamond = Polygon2D.new()
-	_tracker_diamond.polygon = PackedVector2Array([Vector2(0, -13), Vector2(11, 0), Vector2(0, 13), Vector2(-11, 0)])
-	_tracker_diamond.color = Color("2a6bff")
-	_tracker_diamond.position = Vector2(35, 92)
-	_tracker_icon.add_child(_tracker_diamond)
 
 
 func _build_voyage() -> void:
@@ -698,8 +726,7 @@ func _process(delta: float) -> void:
 		if _tracker_open_left <= 0.0:
 			_update_tracker_visibility()
 	if _tracker_icon.visible:
-		_tracker_diamond.modulate.a = 0.25 + 0.75 * absf(sin(_ui_t * 2.4))   # losango piscando
-		_tracker_mark.position.y = sin(_ui_t * 3.0) * 4.0
+		_tracker_mark.position.y = 8.0 + sin(_ui_t * 3.0) * 6.0   # sobe e desce devagar
 	_flicker.color.a = (0.2 if int(_ui_t * 10.0) % 2 == 0 else 0.0) if Solar.inverted_left > 0.0 else 0.0
 	if _panel_active and _panel_provider.is_valid():
 		_panel_refresh += delta

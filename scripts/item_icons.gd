@@ -9,6 +9,7 @@ const PATHS := {
 	"cafe": ["res://assets/items/cafe_0.png", "res://assets/items/cafe_1.png", "res://assets/items/cafe_2.png"],
 	"bolacha": ["res://assets/items/bolacha.png"],
 	"refri": ["res://assets/items/refri.png"],
+	"amostra": ["res://assets/items/amostra.png"],
 }
 
 static var _cache: Dictionary = {}

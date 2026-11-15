@@ -18,7 +18,7 @@ const SHOW_DISTANCE := 280.0
 
 var guided := false
 var _label: Label
-var _marker: Label
+var _marker: Sprite2D
 var _t := 0.0
 var _below := false
 
@@ -37,9 +37,9 @@ func _ready() -> void:
 	_below = global_position.y < 260.0
 	var label_y := global_position.y + (34.0 if _below else -54.0)
 	_label.global_position = Vector2(clampf(global_position.x - 170.0, 8.0, 1536.0 - 348.0), label_y)
-	_marker = _make_label("!", 64, Color("2a6bff"), Color("ffffff"), 10)
-	_marker.size = Vector2(60, 70)
-	_marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_marker = Sprite2D.new()
+	_marker.texture = preload("res://assets/ui/alerta.png")
+	_marker.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_marker.z_index = 60
 	_marker.visible = false
 	add_child(_marker)
@@ -58,7 +58,7 @@ func _process(delta: float) -> void:
 	_label.modulate.a = move_toward(_label.modulate.a, 1.0 if near else 0.0, delta * 3.0)
 	if _marker.visible:
 		var base_y := _label.global_position.y + (40.0 if _below else -74.0)
-		_marker.global_position = Vector2(_label.global_position.x + 170.0 - 30.0, base_y + sin(_t * 3.0) * 8.0)
+		_marker.global_position = Vector2(_label.global_position.x + 170.0, base_y + 34.0 + sin(_t * 3.0) * 8.0)
 
 
 func _on_body_entered(body: Node2D) -> void:

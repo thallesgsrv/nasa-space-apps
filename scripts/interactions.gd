@@ -33,6 +33,10 @@ func run(action: String, source: Node, player: Node) -> void:
 			await _escudos()
 		"mesa_analise":
 			await _mesa_analise()
+		"mural_formulas":
+			await _mural_formulas()
+		"bancada_frascos":
+			await _bancada_frascos()
 		"propulsor":
 			await UI.say([tr("Painel do propulsor."), tr("Todos os sistemas estáveis. (Controle do propulsor em desenvolvimento.)")])
 		"assento":
@@ -371,13 +375,18 @@ func _assento(source: Node, player: Node) -> void:
 			for r in ROUTES:
 				opts.append(tr("Ir para ") + tr(r))
 				acts.append("define:" + r)
+		if Voyage.dodge_unlocked:
+			opts.append(tr("Minigame: campo de asteroides"))
+			acts.append("desvio")
 		opts.append(tr("Levantar"))
 		acts.append("levantar")
 		var i := await UI.choose(opts, title)
 		if i < 0 or acts[i] == "levantar":
 			break
 		var a: String = acts[i]
-		if a == "mapa":
+		if a == "desvio":
+			await _jogar_desvio(true)
+		elif a == "mapa":
 			await UI.say(Voyage.map_text())
 		elif a == "manobra":
 			await UI.say(Voyage.maneuver())
@@ -389,6 +398,8 @@ func _assento(source: Node, player: Node) -> void:
 				Missions.complete("rota")
 				await planet_transition()
 				await UI.say([tr("Viagem iniciada: %s.") % tr(r), tr("A base prevê os perigos; a nave faz as manobras. Cuide da energia e do combustível!")])
+				await UI.say(tr("Pilote a nave pequena pelo campo de asteroides! Termine sem nenhum dano para liberar este minigame na cabine."))
+				await _jogar_desvio(false)
 				break
 		else:
 			var r2 := a.substr(7)
@@ -396,6 +407,16 @@ func _assento(source: Node, player: Node) -> void:
 			await UI.say([tr("Próxima rota definida: %s.") % tr(r2), tr("(A viagem começa na missão de viagem.)")])
 	player.stand(stand_pos)
 
+
+
+# Minigame da nave: desviar de asteroides. Sem dano = libera para jogar quando quiser na cabine.
+func _jogar_desvio(free_play: bool) -> void:
+	var g = UI.open_dodge(free_play)
+	await g.closed
+	var clean: bool = g.finished and g.hits == 0
+	g.queue_free()
+	if clean and not Voyage.dodge_unlocked:
+		Voyage.dodge_unlocked = true
 
 
 # ============================ missoes ============================
@@ -602,19 +623,82 @@ func _escudos() -> void:
 		await UI.say([tr("Escudos ativados!"), tr("Energia redirecionada. Aguarde a onda passar.")])
 
 
-# Mesa de analise (lado da Terra): menu do que analisar + minigame da placa de Petri.
+# Mesa de analise (lado da Terra): placa de Petri (missao) e analise de amostra ao microscopio.
 func _mesa_analise() -> void:
-	if not Missions.is_step("veredito"):
-		await UI.say(tr("Mesa de análise. Nenhuma amostra para analisar."))
-		return
-	if Missions.analyzed:
+	var can_petri := Missions.is_step("veredito") and not Missions.analyzed
+	if Missions.is_step("veredito") and Missions.analyzed:
 		await UI.say([tr("A amostra já foi analisada."), tr("Coloração observada: %s.") % Missions.color_name().to_upper(), tr("Agora dê o veredito no painel da base.")])
+	var opts: Array = []
+	if can_petri:
+		opts.append(tr("Fungo (amostra da nave)"))
+	opts.append(tr("Microscópio: contar colônias"))
+	opts.append(tr("Cancelar"))
+	var i := await UI.choose(opts, tr("O que você quer analisar?"))
+	if i < 0 or i >= opts.size() - 1:
 		return
-	var i := await UI.choose([tr("Fungo (amostra da nave)"), tr("Cancelar")], tr("O que você quer analisar?"))
-	if i != 0:
+	if can_petri and i == 0:
+		var g = UI.open_petri()
+		await g.closed
+		g.queue_free()
+		if Missions.analyzed:
+			await UI.say([tr("Análise concluída."), tr("Coloração observada: %s.") % Missions.color_name().to_upper(), tr("Agora dê o veredito no painel da base.")])
 		return
-	var g = UI.open_petri()
+	var d := await _escolher_dificuldade()
+	if d < 0:
+		return
+	var m = UI.open_microscope(d)
+	await m.closed
+	var res: Dictionary = m.result
+	m.queue_free()
+	if not res.is_empty():
+		await UI.say([tr("Você contou %d colônias → %s.") % [res["count"], res["label"]],
+			tr("Valor real: %d → %s. Pontuação: %d%%.") % [res["truth"], res["true_label"], res["score"]]])
+
+
+func _escolher_dificuldade() -> int:
+	var i := await UI.choose([tr("Fácil"), tr("Médio"), tr("Difícil"), tr("Cancelar")], tr("Dificuldade"))
+	return i if i >= 0 and i < 3 else -1
+
+
+# Mural de formulas (Terra): cada acerto da bonus no recurso ligado a formula (vale na viagem).
+func _mural_formulas() -> void:
+	var i := await UI.choose([tr("Normal"), tr("Difícil (arrastar os valores primeiro)"), tr("Cancelar")], tr("Mural de fórmulas"))
+	if i < 0 or i > 1:
+		return
+	var g = UI.open_mural(i == 1)
 	await g.closed
+	var res: Dictionary = g.result
 	g.queue_free()
-	if Missions.analyzed:
-		await UI.say([tr("Análise concluída."), tr("Coloração observada: %s.") % Missions.color_name().to_upper(), tr("Agora dê o veredito no painel da base.")])
+	if res.is_empty():
+		return
+	var lines: Array = []
+	for b in res["bonuses"]:
+		Voyage.grant(b["kind"], float(b["amount"]))
+		lines.append(tr("Bônus enviado à nave: ") + tr(FormulaMural.KIND_TEXT[b["kind"]]) % int(round(float(b["amount"]))))
+	if lines.is_empty():
+		lines.append(tr("Nenhum bônus desta vez."))
+	else:
+		lines.append(tr("(O bônus vale na viagem em andamento ou na próxima.)"))
+	await UI.say(lines)
+
+
+# Bancada de frascos (Terra): preparo de reagente; boa qualidade rende combustivel para a viagem.
+func _bancada_frascos() -> void:
+	var d := await _escolher_dificuldade()
+	if d < 0:
+		return
+	var g = UI.open_reagent(d)
+	await g.closed
+	var res: Dictionary = g.result
+	g.queue_free()
+	if res.is_empty():
+		return
+	var q: int = res["quality"]
+	if res["spilled"]:
+		await UI.say(tr("O copo transbordou. Nada aproveitável."))
+	elif q >= 50:
+		var amount := 4.0 + 10.0 * float(q) / 100.0
+		Voyage.grant("fuel", amount)
+		await UI.say([tr("Reagente com %d%% de qualidade.") % q, tr("Bônus enviado à nave: +%d%% de combustível.") % int(round(amount)), tr("(O bônus vale na viagem em andamento ou na próxima.)")])
+	else:
+		await UI.say(tr("Reagente com %d%% de qualidade: baixo demais para ser aproveitado.") % q)

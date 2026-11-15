@@ -8,10 +8,10 @@ const ROOM_MUSIC := {
 	"cafeteria": "res://assets/audio/music/cafeteria.mp3",
 	"laboratorio": "res://assets/audio/music/laboratorio.mp3",
 	"sala_controle": "res://assets/audio/music/sala_controle.mp3",
-	# "dormitorio": "res://assets/audio/music/dormitorio.mp3",          (falta o arquivo)
-	# "armazem": "res://assets/audio/music/armazem.mp3",                (falta o arquivo)
-	# "camara_propulsao": "res://assets/audio/music/camara_propulsao.mp3",  (falta o arquivo)
-	# "sala_reator": "res://assets/audio/music/sala_reator.mp3",        (falta o arquivo)
+	"dormitorio": "res://assets/audio/music/dormitorio.mp3",
+	"armazem": "res://assets/audio/music/armazem.mp3",
+	"camara_propulsao": "res://assets/audio/music/camara_propulsao.mp3",
+	"sala_reator": "res://assets/audio/music/sala_reator.mp3",
 }
 
 const SFX := {
@@ -28,6 +28,8 @@ var _music: Array[AudioStreamPlayer] = []
 var _active := 0
 var _sfx: Array[AudioStreamPlayer] = []
 var _next_sfx := 0
+var _cd: AudioStreamPlayer       # som da contagem do nucleo (termina na explosao)
+var _cd_started := false
 var _paused_room := ""     # sala que estava tocando quando a musica foi pausada (videos)
 
 
@@ -43,6 +45,9 @@ func _ready() -> void:
 		p.volume_db = SFX_DB
 		add_child(p)
 		_sfx.append(p)
+	_cd = AudioStreamPlayer.new()
+	_cd.volume_db = SFX_DB + 2.0
+	add_child(_cd)
 
 
 ## Toca o ambiente da sala (com fade). Sala sem arquivo = silencio.
@@ -82,6 +87,27 @@ func resume_music() -> void:
 	_paused_room = ""
 	if r != "":
 		play_room(r)
+
+
+## Som da contagem do nucleo: o arquivo termina na explosao, entao ele entra quando faltam
+## "duracao do arquivo" segundos e fica sincronizado com a contagem (pausa junto com os menus).
+## remaining < 0 = sem contagem (para o som).
+func sync_countdown(remaining: float, paused: bool) -> void:
+	if remaining < 0.0:
+		if _cd_started:
+			_cd.stop()
+			_cd_started = false
+		return
+	if not _cd_started and not paused:
+		var path: String = SFX["explosao"]
+		var stream := load(path) as AudioStream
+		var length := stream.get_length()
+		if remaining <= length:
+			_cd.stream = stream
+			_cd.play(length - remaining)
+			_cd_started = true
+	if _cd_started:
+		_cd.stream_paused = paused
 
 
 ## Efeito sonoro curto. max_len > 0 corta o som depois desse tempo (em segundos).
