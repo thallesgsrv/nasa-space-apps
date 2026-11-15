@@ -961,6 +961,11 @@ func _refresh_voyage() -> void:
 func _refresh_tracker() -> void:
 	var txt: String = Missions.tracker_text()
 	_tracker_label.text = txt
+	# a caixa (NinePatchRect, cantos fixos + miolo que estica) cresce com o texto
+	_tracker_label.size = Vector2(540, 10)
+	var text_h := maxf(_tracker_label.get_minimum_size().y, 30.0)
+	_tracker.size = Vector2(600, maxf(120.0, text_h + 48.0))
+	_tracker_label.size = Vector2(540, text_h)
 	if txt != _tracker_last:      # objetivo novo: mostra a mensagem por um tempo
 		_tracker_last = txt
 		_tracker_open_left = TRACKER_SHOW_TIME
