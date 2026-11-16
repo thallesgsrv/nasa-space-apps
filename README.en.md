@@ -97,3 +97,170 @@ NASA_API_KEY=your_key python3 tools/nasa_feed_proxy.py output/space_events.json 
 ```
 
 Without a key, the script uses `DEMO_KEY`, which has a low, shared limit. The `data/space_events.json` file has only three historical flares (2003, 2017 and 2024) filled in by hand, so check dates and classes in DONKI before presenting them as official data.
+
+EONET and NeoWs are not integrated yet. The asteroid event is randomly drawn and marked as `RISCO`.
+
+## Technologies
+
+- Godot 4 (2D, Forward+ renderer) and GDScript, about 11 thousand lines
+- Networking with `ENetMultiplayerPeer` (LAN) and `WebSocketMultiplayerPeer` (internet and browser)
+- Python 3, standard library only, for the DONKI feed
+- Videos in Ogg Theora, audio in MP3 and WAV, PixelOperator8 font
+- User interface built in code
+- Godot's own headless tests and a shell script for networking
+
+## Rooms in HTML and CSS
+
+The `rooms_html/` folder has the seven ship rooms drawn with HTML and CSS only, based on the real collisions, doors and interaction zones of the `.tscn` scenes (same positions and 3:2 proportion as the game). Open `rooms_html/index.html` in the browser: the doors lead from one room to another and the stage stays centered at any window size.
+
+## Code organization
+
+The game is made of autoloads that share state. The host is the authority and clients receive a mirror.
+
+```
+scripts/
+  game_state.gd      needs, inventory, capsule
+  mission_state.gd   CML 1-9, parameters, risks, log and report
+  missions.gd        mission steps
+  voyage.gd          voyage, events, reactor, asteroid
+  solar.gd           solar storm
+  nasa_feed.gd       solar events with cache and fallback
+  interactions.gd    what each ship object does
+  net.gd             LAN, WebSocket, roles and RPCs
+  lobby.gd, ghost.gd lobby and the other players' "ghosts"
+  lang.gd            Portuguese and English
+  audio.gd           music and effects
+  ui/                HUD, dialogs, screens and minigames
+scenes/              menu, cutscene, game, rooms
+data/                offline feed fallback
+tools/               NASA feed and network test
+tests/               automated tests
+```
+
+On the network, the host runs the simulation and sends a mirror of the state about 10 times per second. Client requests go through `Net.call_host`, which only runs if the player's role allows it (`Net.CALL_ROLES`). For example, only the scientist calls `Solar.decide`.
+
+The data path is: `MissionState.params` feeds `Voyage`, `Solar` and the event draw, which write to `MissionState.log`, from which the report is produced.
+
+## How to run
+
+Use Godot 4.6 or newer, the standard version (not .NET). `project.godot` is marked as 4.7 and the tests below were run on 4.6.
+
+```bash
+git clone https://github.com/thallesgsrv/nasa-space-apps
+cd nasa-space-apps
+godot --headless --import    # first time only
+godot --path .
+```
+
+| Key | Action |
+|---|---|
+| WASD or arrows | Move |
+| F, Enter or Space | Interact and confirm |
+| I or Tab | Backpack |
+| M or J | Mission menu |
+| V | Review the current objective |
+| 1 | Switch between astronaut and scientist |
+| Esc | Cancel or close |
+
+### Export
+
+`export_presets.cfg` has the Web (no threads, does not require COOP/COEP headers) and Linux presets. With the export templates installed:
+
+```bash
+mkdir -p build/web build/linux
+godot --headless --export-release "Web" build/web/index.html
+godot --headless --export-release "Linux (host/servidor)" build/linux/nasa-space-apps.x86_64
+```
+
+To test the Web build locally, run `python -m http.server 8000` inside `build/web`. Opening `index.html` with a double click does not work.
+
+## Multiplayer and how to put it online
+
+On LAN the game uses ENet: UDP 24565 for the game and UDP 24566 for room discovery. Over the internet it uses WebSocket on TCP port 24567. In either case the host is the desktop executable, and the browser can only join rooms that have already been created (by address, with no automatic discovery).
+
+The playable version is published on GitHub Pages (link at the top). To publish again, export the Web preset and upload the `build/web` folder to GitHub Pages, itch.io, Netlify or Cloudflare Pages.
+
+The catch is HTTPS: an HTTPS page blocks `ws://` connections. The game client accepts `wss://`, so there are three paths:
+
+- TLS tunnel. The host runs `cloudflared tunnel --url http://localhost:24567` and the others join with `wss://tunnel-address`. It is the simplest and does not require opening a port on the router.
+- Your own server with Caddy or nginx handling TLS in front of port 24567.
+- Local network over HTTP: the host serves `build/web` with `python -m http.server 8000` and players use `http://IP:8000` and `ws://IP:24567`. Open the ports in the firewall and check that the Wi-Fi does not isolate clients.
+
+Solo mode works on any static hosting.
+
+## Tests
+
+```bash
+godot --headless res://tests/run_tests.tscn
+bash tools/run_net_tests.sh /path/to/godot ws
+```
+
+In the last run (Godot 4.6, commit `8c0a0a5`), the rules suite finished with 303 checks and 0 failures. The network test, with 4 players and a fifth one refused, and the team planning test also passed. The suite covers loading all scenes, state reset, game over, the bionutrients flow, the voyage with each event, the reactor, the solar storm with and without alert, the NASA feed and the effect of planning on the flight.
+
+At the end of the run, Godot prints "RID allocations leaked at exit" warnings. This happens when headless mode shuts down and does not indicate a failure.
+
+## What is already done
+
+- Planning with the nine CMLs, with costs, budget validation, inconsistencies at CML 6, requirements at the PDR, a vote at CML 1 and the split of the others among the players.
+- Planning that really changes the flight (mass, fuel, consumption, time, risk, parts and communications), verified by tests.
+- LAN and WebSocket multiplayer with role-based permissions, state mirroring and an integration test.
+- Scientist's laboratory with sample analysis, formula board, reagent bench and base panel (ship monitor, hazard forecast, asteroid calculation).
+- Solar storm with six possible outcomes, depending on the alert and the shields.
+- Three voyage events with different mechanics.
+- Return to Earth and a three-page post-mission report.
+- Six rooms on the ship, plus the laboratory on Earth, each with music.
+- Survival, inventory, locker and capsule to Earth.
+- Portuguese and English translation (about 770 texts).
+
+## What is half-done
+
+- **Classes.** The lobby lets players swap roles, but the flight engineer and astronaut 2 have exactly the same permissions. Missing are a maintenance and diagnostics mechanic exclusive to the engineer, and a class selection screen at the start.
+- **CML 1 objective.** The vote is recorded and appears in the report, but it does not change the mission. Choosing cislunar radiation or optical communication does not create any corresponding experiment, and the game always runs the bionutrients mission.
+- **Tasks.** There are four missions, six minigames and the onboard tasks, which is still few for a long match.
+- **Events.** Only three types, with no chaining between them.
+- **NASA.** Only DONKI, and it only feeds the solar storm.
+- **Economy and rewards.** Credits exist only in planning and turn into points in the report. There is no economy during operation and no upgrades between missions.
+- **Propulsion chamber.** The panel replies that the control is under development.
+- **Browser multiplayer.** The Web build is published, but joining a room from the HTTPS page (with `wss://`) has not yet been tested end to end.
+
+## Roadmap
+
+1. Make the CML 1 objective matter, or reduce the options to what exists.
+2. Give the engineer their own maintenance and diagnostics actions.
+3. Add tasks and events, with chaining (a poorly handled event makes another worse).
+4. Test multiplayer through the browser with `wss://` and configure the NASA feed in the Web build.
+5. Integrate NeoWs into the asteroid event and EONET into events that affect the base.
+6. Economy during operation and some kind of progression.
+7. Expand the DONKI fallback and update the feed automatically with a GitHub Action.
+8. Implement the propulsion chamber panel and save games.
+9. Rebalance the numbers, which the code itself marks as provisional.
+
+## Points of attention
+
+- `project.godot` declares Godot 4.7, and the old README mentioned 4.6. It is worth agreeing on a single version.
+- The project uses Forward+, and Godot 4's Web export works with the Compatibility renderer. Check on the first export that it opens in the browser.
+- Assets total about 57 MB, of which 24 MB is music. For Web, it is worth compressing the MP3s.
+- There are unreferenced template assets: `knight`, `slime_green`, `slime_purple`, `coin`, `fruit`, `platforms`, `world_tileset`, a PNG with a UUID name, `time_for_adventure.mp3` and `Laboratorio_futurista_em_pixel_art.webp`.
+- The scene `scenes/baseterrestre/saladecontrole.tscn` is not used by anything.
+- The repository has a single commit.
+
+## Credits and license
+
+The license has not been defined yet, and the repository has no `LICENSE` file. Also missing are the asset credits (music, effects, font, sprites and interface) and the team list.
+
+### Use of AI
+
+- **Code:** we used Claude Code to help write the GDScript. The game design, the idea of linking planning to flight, and the architecture are ours.
+- **Images:** some of the images were generated with AI and then hand-edited in PixelStudio and Pixelorama.
+- **Videos:** the videos used in the opening cutscene (`assets/videos/`) were generated with AI.
+- **Documentation:** this README and the submission text were written with the help of Claude (Anthropic) from our code and notes, and reviewed by the team.
+- No NASA logo, flag or mission identifier was used or generated.
+
+### Data and references
+
+- NASA DONKI, solar flare data (api.nasa.gov).
+- NASA's Concept Maturity Levels (CML) and PDR and CDR reviews, as a reference for planning.
+- Godot Engine 4 (MIT license), Python 3, Git and GitHub.
+- PixelOperator8 font.
+
+Terra Chamando - Project developed for the NASA Space Apps Challenge 2026, for the Space Mission Design Game challenge.
