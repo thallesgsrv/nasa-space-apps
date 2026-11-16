@@ -259,4 +259,4 @@ A licença ainda não foi definida, e o repositório não tem arquivo `LICENSE`.
 - Godot Engine 4 (licença MIT), Python 3, Git e GitHub.
 - Fonte PixelOperator8.
 
-Projeto desenvolvido para o NASA Space Apps Challenge 2026, no desafio Space Mission Design Game.
+Terra Chamando - Projeto desenvolvido para o NASA Space Apps Challenge 2026, no desafio Space Mission Design Game.
