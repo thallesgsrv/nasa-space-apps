@@ -1,3 +1,5 @@
+**🇧🇷 Português** | [🇺🇸 English](README.en.md)
+
 # Terra Chamando
 
 Jogo 2D cooperativo feito em Godot para o NASA Space Apps Challenge 2026, no desafio **Space Mission Design Game**. A equipe planeja uma missão espacial na Terra, executa a viagem dentro da nave e, no fim, recebe um relatório que mostra o que cada decisão do planejamento causou no espaço.
