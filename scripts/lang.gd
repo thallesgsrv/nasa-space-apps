@@ -261,6 +261,7 @@ const EN := {
 	"Opções em breve.": "Options coming soon.",
 	"Controles: W A S D andam, F interage, I abre a mochila.": "Controls: W A S D move, F interacts, I opens the backpack.",
 	"INICIAR": "START",
+	"Planeje a missão. Lance. Descubra o que cada decisão causou.": "Plan the mission. Launch. See what every decision caused.",
 	"OPÇÕES": "OPTIONS",
 	"Idioma": "Language",
 	"Idioma / Language": "Idioma / Language",
