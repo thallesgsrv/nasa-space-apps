@@ -531,16 +531,17 @@ func choose(options: Array, title: String = "") -> int:
 
 func toast(text: String, seconds: float = 3.0) -> void:
 	_toast_label.text = text
-	# largura maxima: mensagens longas quebram linha em vez de sair da tela
+	# largura maxima: mensagens longas quebram linha em vez de sair da tela; a altura vem do Label
 	var text_w := FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
 	var w := minf(text_w + 80.0, 1180.0)
-	var lines := maxi(1, ceili(text_w / (w - 80.0)))
-	var h := 64.0 + float(lines - 1) * 30.0
+	_toast_label.custom_minimum_size = Vector2.ZERO
+	_toast_label.size = Vector2(w - 80.0, 10.0)
+	var text_h := maxf(_toast_label.get_minimum_size().y, 30.0)
+	var h := maxf(64.0, text_h + 34.0)
 	_toast.size = Vector2(w, h)
 	_toast.position = Vector2((VIEW.x - w) / 2.0, 24)
-	_toast_label.custom_minimum_size = Vector2.ZERO
-	_toast_label.position = Vector2.ZERO
-	_toast_label.size = _toast.size
+	_toast_label.position = Vector2(40.0, (h - text_h) / 2.0)
+	_toast_label.size = Vector2(w - 80.0, text_h)
 	_toast.visible = true
 	_toast.modulate.a = 1.0
 	if _toast_tween:
@@ -723,16 +724,20 @@ func _build_dialog() -> void:
 
 
 # A caixa do dialogo (NinePatchRect) cresce para cima conforme o texto, com folga nas bordas.
+# A altura vem do proprio Label (ja com quebra de linha), entao o texto nunca passa da caixa
+# e a dica [F] fica numa faixa propria, embaixo, sem cobrir a ultima linha.
 func _fit_dialog(text: String) -> void:
 	var w := 1112.0
-	var sz := FONT.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, w, 32)
-	var lines := maxi(1, roundi(sz.y / FONT.get_height(32)))
-	var h := clampf(float(lines) * (FONT.get_height(32) + 10.0) + 112.0, 240.0, 460.0)
+	_dialog_text.text = text
+	_dialog_text.size = Vector2(w, 10.0)
+	var text_h := maxf(_dialog_text.get_minimum_size().y, 42.0)
+	var h := clampf(text_h + 54.0 + 70.0, 240.0, 560.0)
 	_dialog.size = Vector2(1280, h)
 	_dialog_box.size = _dialog.size
-	_dialog.position.y = 930.0 - h
-	_dialog_text.size = Vector2(w, h - 100.0)
-	_dialog_arrow.position = Vector2(1120, h - 50.0)
+	_dialog.position = Vector2((VIEW.x - 1280.0) / 2.0, 930.0 - h)
+	_dialog_text.position = Vector2(84, 54)
+	_dialog_text.size = Vector2(w, h - 124.0)
+	_dialog_arrow.position = Vector2(1280.0 - 84.0 - 70.0, h - 56.0)
 
 
 func _show_line(text: String) -> void:

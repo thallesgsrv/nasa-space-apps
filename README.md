@@ -105,6 +105,10 @@ EONET e NeoWs ainda não foram integradas. O evento de asteroide é sorteado e m
 - Interface montada por código
 - Testes headless do próprio Godot e um script shell para a rede
 
+## Salas em HTML e CSS
+
+A pasta `rooms_html/` tem as sete salas da nave desenhadas só com HTML e CSS, a partir das colisões, portas e zonas de interação reais das cenas `.tscn` (mesmas posições e proporção 3:2 do jogo). Abra `rooms_html/index.html` no navegador: as portas levam de uma sala à outra e o palco fica centralizado em qualquer tamanho de janela.
+
 ## Organização do código
 
 O jogo é feito de autoloads que compartilham estado. O host é a autoridade e os clientes recebem um espelho.
